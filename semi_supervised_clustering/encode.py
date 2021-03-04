@@ -42,7 +42,7 @@ class Encoder:
         self._model: Optional[sp.SentencePieceProcessor] = None
         
         # Try to load the model
-        self._load_model()
+        self.load()
     
     def __str__(self):
         """Model representation."""
@@ -84,7 +84,7 @@ class Encoder:
         
         # Remove temporal file and load the model
         temp_path.unlink(missing_ok=True)
-        assert self._load_model()
+        assert self.load()
         
         # Display overview
         if show_overview:
@@ -143,7 +143,7 @@ class Encoder:
             print(f" - Index {i:3d}: {self._model.decode(i)}")
         print(f"\n\n")
     
-    def _load_model(self) -> bool:
+    def load(self) -> bool:
         """Try to load a pretrained model and return its success."""
         if (self._path / f"{self}.model").is_file():
             self._model = sp.SentencePieceProcessor(model_file=str(self._path / f"{self}.model"))

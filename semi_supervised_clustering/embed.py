@@ -38,7 +38,7 @@ class Embedder:
         self._model: Optional[tf.keras.Model] = None
         
         # Try to load the model, create new if unsuccessful
-        if not self._load_model():
+        if not self.load():
             self.create_model()
     
     def __str__(self):
@@ -113,7 +113,7 @@ class Embedder:
         )
         if show_overview:
             self._model.summary()
-        self.store_model()
+        self.store()
     
     def train_positive(
             self,
@@ -157,7 +157,11 @@ class Embedder:
                 tf.math.maximum(100 * diff, 1e-5)
         )
     
-    def _load_model(self) -> bool:
+    def store(self) -> None:
+        """Store the current model state."""
+        self._model.save(self._path / str(self))
+    
+    def load(self) -> bool:
         """Try to load a pretrained model and return its success."""
         if (self._path / str(self)).is_dir():
             self._model = tf.keras.models.load_model(
@@ -169,7 +173,3 @@ class Embedder:
             )
             return True
         return False
-    
-    def store_model(self) -> None:
-        """Store the current model state."""
-        self._model.save(self._path / str(self))

@@ -42,7 +42,7 @@ class Clusterer:
         self._centroids: Dict[str, np.ndarray] = {}  # Cache for the cluster centroids
         
         # Load previously known clusters, if exists
-        self._load()
+        self.load()
     
     def __str__(self):
         """Cluster representation."""
@@ -72,7 +72,7 @@ class Clusterer:
             results.append(cluster_ids[idx] if similarity[i, idx] >= self._sim_thr else None)
         return results
     
-    def add_known_clusters(
+    def add_clusters(
             self,
             known_clusters: Dict[str, List[str]],
     ) -> None:
@@ -97,7 +97,7 @@ class Clusterer:
             # Add to known clusters (extend to existing if possible, create new otherwise)
             for c in cluster:
                 self._clusters[self.clean_f(c)] = c_id
-        self._store()
+        self.store()
     
     def add_to_cluster(
             self,
@@ -109,7 +109,7 @@ class Clusterer:
             assert self._clusters[item] == c_id
         assert c_id is None or c_id in self._clusters.values()  # Cluster already exists
         self._clusters[item] = c_id
-        self._store()
+        self.store()
     
     def add_validation(
             self,
@@ -123,17 +123,22 @@ class Clusterer:
             
             # Check if all cluster-values are not in training data and add to validation cluster
             for c in cluster:
-                c = self.clean_f(c)
-                assert c not in self._clusters.keys()
-                self._clusters_val[self.clean_f(c)] = c_id
-        self._store()
+                clean = self.clean_f(c)
+                if clean in self._clusters.keys():
+                    raise Exception(f"Sample '{c}' already in training set")
+                self._clusters_val[clean] = c_id
+        self.store()
+    
+    def get_validation_data(self) -> List[Tuple[str, Optional[str]]]:
+        """Return the validation data as (input_value, target_cluster_id)."""
+        return [(k, v) for k, v in self._clusters_val.items()]  # Odd typing bug if list(.items())
     
     def reset(self):
         """Reset clusterer by removing previously labeled data, cannot be undone."""
         self._clusters = {}
         self._clusters_val = {}
         self._centroids = {}
-        self._store()
+        self.store()
     
     def get_all_cluster_ids(self) -> Set[str]:
         """Get all the clusters."""
@@ -374,7 +379,7 @@ class Clusterer:
             
             # Show progress and save the results
             self.show_overview()
-            self._store()
+            self.store()
         else:
             return validating_samples
     
@@ -529,29 +534,9 @@ class Clusterer:
         print(f"\n\nCluster overview:")
         all_clusters = self.get_all_clusters()
         print(f" - Total of {len(all_clusters)} clusters")
-        cluster_lengths = [len(v) for v in all_clusters.values()]
-        print(f" - Average number of cluster-labels: {round(sum(cluster_lengths) / len(cluster_lengths), 2)}")
-        
-        def get_percentage(a, b) -> str:
-            return f"{round(100 * a / b, 2)}% ({a}/{b})"
-        
-        # Validate if validation set exists
-        if self._clusters_val and self._centroids:
-            x, y = zip(*self._clusters_val.items())
-            predicted_clusters = self(x)
-            print(f" - Validation:")
-            n_correct = sum([true == pred for true, pred in zip(y, predicted_clusters)])
-            print(f"   - Accuracy: {get_percentage(n_correct, len(x))}")
-            n_unclustered = sum([pred is None for pred in predicted_clusters])
-            print(f"   - Clustered: {get_percentage(len(x) - n_unclustered, len(x))}")
-            print(f"   - Unclustered: {get_percentage(n_unclustered, len(x))}")
-            n_incorrect_clustered = len(x) - n_correct + n_unclustered
-            print(f"   - Incorrectly clustered: {get_percentage(n_incorrect_clustered, len(x))}")
-        elif self._clusters_val:
-            print(f" - No cluster centroids defined")
-        else:
-            print(f" - No validation data exists")
-        print(f"\n\n")
+        if all_clusters:
+            cluster_lengths = [len(v) for v in all_clusters.values()]
+            print(f" - Average number of cluster-labels: {round(sum(cluster_lengths) / len(cluster_lengths), 2)}")
     
     def validate_cli(
             self,
@@ -598,7 +583,7 @@ class Clusterer:
                     print(f" --> You're creating a new cluster '{inp}'")
                     confirmation = input(" --> Continue? (Yes:y, No:<other>) : ")
                     if confirmation == 'y':
-                        self.add_known_clusters({inp: [item]})
+                        self.add_clusters({inp: [item]})
                         print(f" --> Creating new cluster '{inp}'")
                     else:
                         print(f" --> Trying again")
@@ -608,7 +593,19 @@ class Clusterer:
             print(f" --> Invalid action, try again")
             self.validate_cli(item=item, proposed_cluster=proposed_cluster, sim=sim)
     
-    def _load(self) -> None:
+    def store(self) -> None:
+        """Store the current centroids, training and validation data."""
+        # Store the centroids
+        with open(self._path_model / f"{self}", 'w') as file:
+            json.dump(self._centroids, file)
+        
+        # Store the (validation) clusters
+        with open(self._path_data / f"{self}-train", 'w') as file:
+            json.dump(self._clusters, file, indent=2)
+        with open(self._path_data / f"{self}-val", 'w') as file:
+            json.dump(self._clusters_val, file, indent=2)
+    
+    def load(self) -> None:
         """Load in previously-created centroids, training and validation data."""
         # Load in centroids
         if (self._path_model / f"{self}").is_file():
@@ -622,15 +619,3 @@ class Clusterer:
         if (self._path_data / f"{self}-val").is_file():
             with open(self._path_data / f"{self}-val", 'r') as file:
                 self._clusters_val = json.load(file)
-    
-    def _store(self) -> None:
-        """Store the current centroids, training and validation data."""
-        # Store the centroids
-        with open(self._path_model / f"{self}", 'w') as file:
-            json.dump(self._centroids, file)
-        
-        # Store the (validation) clusters
-        with open(self._path_data / f"{self}-train", 'w') as file:
-            json.dump(self._clusters, file, indent=2)
-        with open(self._path_data / f"{self}-val", 'w') as file:
-            json.dump(self._clusters_val, file, indent=2)
