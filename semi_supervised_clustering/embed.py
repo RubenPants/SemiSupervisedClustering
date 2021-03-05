@@ -138,7 +138,7 @@ class Embedder:
         return False
     
     def _positive_loss(self, y_true, y_pred) -> Any:
-        """MAE loss on the dot-difference for positive sampling."""
+        """MAE loss on the dot-difference for positive sampling (https://www.desmos.com/calculator/uh9yklg2ij)."""
         y_true = tf.reshape(y_true, (-1, self._layers[-1]), name='reshape_y_true')
         y_true = tf.math.l2_normalize(y_true, axis=-1, name='normalize_y_true')
         y_pred = tf.reshape(y_pred, (-1, self._layers[-1]), name='reshape_y_pred')
@@ -147,7 +147,7 @@ class Embedder:
         return tf.math.maximum(0., tf.math.subtract(1., dots, name='subtract_1'))
     
     def _negative_loss(self, y_true, y_pred):
-        """Gaussian loss on the dot-difference for negative sampling."""
+        """Asymptotic graph near x=0 for negative sampling (https://www.desmos.com/calculator/uh9yklg2ij)."""
         y_true = tf.reshape(y_true, (-1, self._layers[-1]), name='reshape_y_true')
         y_true = tf.math.l2_normalize(y_true, axis=-1, name='normalize_y_true')
         y_pred = tf.reshape(y_pred, (-1, self._layers[-1]), name='reshape_y_pred')
@@ -156,5 +156,5 @@ class Embedder:
         diff = tf.math.maximum(0., tf.math.subtract(1., dots, name='subtract_1'))
         return tf.math.divide(
                 1.,
-                tf.math.maximum(100 * diff, 1e-5)
+                tf.math.maximum(50 * diff, 1e-5)
         )

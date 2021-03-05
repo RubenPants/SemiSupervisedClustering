@@ -89,7 +89,7 @@ class Encoder:
         # Display overview
         if show_overview:
             # Get 5 most occurring words
-            most_occurring = [k for k,_ in sorted(Counter(data).items(), key=lambda x: -x[1])][:5]
+            most_occurring = [k for k, _ in sorted(Counter(data).items(), key=lambda x: -x[1])][:5]
             self.show_overview(words=most_occurring)
     
     def encode(self, sentence: str, sample: bool = False) -> np.ndarray:
