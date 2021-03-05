@@ -3,7 +3,7 @@ Cluster context-less language data in a semi-supervised manner.
 
 ## 1. Installation
 ```
-pip install ???
+pip install https://github.com/RubenPants/SemiSupervisedClustering.git
 ```
 
 ## TODO

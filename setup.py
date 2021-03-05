@@ -8,6 +8,9 @@ HERE = pathlib.Path(__file__).parent
 # The text of the README file
 README = (HERE / "README.md").read_text()
 
+# The text of the LICENCE file
+LICENCE = (HERE / "LICENCE").read_text()
+
 INSTALL_REQUIRES = [
     "tensorflow~=2.4.1`",
     "sentencepiece~=0.1.95`",
@@ -22,12 +25,12 @@ setup(
         description="Cluster context-less language data in a semi-supervised manner.",
         long_description=README,
         long_description_content_type="text/markdown",
-        url="https://github.com/RubenPants/semi_supervised_clustering",
+        url="https://github.com/RubenPants/SemiSupervisedClustering",
         author="RubenPants",
         author_email="broekxruben@gmail.com",
-        license="CC BY-NC-ND 3.0",
+        license=LICENCE,
         classifiers=["Programming Language :: Python :: 3", "Programming Language :: Python :: 3.8", ],
-        packages=find_packages(exclude=("tests", "notebooks", "doc", "scripts")),
+        packages=find_packages(exclude=("demos", "img")),
         include_package_data=True,
         package_data={"": ["data/synonym_config.pkl"]},
         install_requires=INSTALL_REQUIRES,
