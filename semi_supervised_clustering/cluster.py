@@ -52,7 +52,7 @@ class Clusterer:
         """Cluster representation."""
         return str(self)
     
-    def __call__(  # TODO: Check if works as expected
+    def __call__(
             self,
             embeddings: np.ndarray,
     ) -> List[Optional[str]]:
@@ -173,7 +173,7 @@ class Clusterer:
     def synchronise(
             self,
             data: List[str],
-    ) -> None:
+    ) -> None:  # TODO: Check validation as well?
         """Synchronise the clusters with the given data by removing the items that don't occur in the data."""
         data = {self.clean_f(d) for d in data}
         for k in sorted(self._clusters.keys()):
@@ -209,7 +209,7 @@ class Clusterer:
             n: int,
             items: List[str],
             embeddings: np.ndarray,
-            n_replaces: int = 5,
+            n_replaces: int = 10,
     ) -> List[Tuple[str, np.ndarray]]:
         """
         Sample unsupervised any two different items at random, the second item is used as a repulsion-vector.
@@ -244,7 +244,7 @@ class Clusterer:
             n: int,
             items: List[str],
             embeddings: np.ndarray,
-            n_replaces: int = 5,
+            n_replaces: int = 10,
     ) -> List[Tuple[str, np.ndarray]]:
         """
         Sample positive items from the clusters with their centroid as target-vector.
@@ -366,16 +366,25 @@ class Clusterer:
         
         # Discover items that can be placed in more than one cluster
         validating_samples += self.discover_uncertain(
-                n=n_validate_cluster,
+                n=n_uncertain,
                 items=items,
                 embeddings=embeddings,
                 weights=weights,
         )
         
+        # Filter samples on duplicates and remove those that are present in _clusters_val
+        added = set()
+        temp = []
+        for sim, (a, b) in validating_samples:
+            if a not in added and a not in self._clusters_val.keys():
+                added.add(a)
+                temp.append((sim, (a, b)))
+        validating_samples = temp
+        
         # Validate the proposed items
         if cli:
             for sim, (a, b) in validating_samples:
-                self.validate_cli(item=a, proposed_cluster=self._clusters[b], sim=sim)
+                self.validate_cli(item=a, proposed_cluster=b, sim=sim)
             
             # Show progress and save the results
             self.show_overview()
@@ -383,7 +392,7 @@ class Clusterer:
         else:
             return validating_samples
     
-    def discover_cluster_boundary(  # TODO: Validate if works properly
+    def discover_cluster_boundary(
             self,
             n: int,
             items: List[str],
@@ -439,7 +448,7 @@ class Clusterer:
             items: List[str],
             embeddings: np.ndarray,
             weights: Optional[List[float]] = None,
-            k_neighbours: int = 20,
+            k_neighbours: int = 10,
     ) -> List[Tuple[float, str]]:
         """
         Discover a potential new cluster that doesn't yet belong to any existing cluster.
@@ -597,7 +606,7 @@ class Clusterer:
         """Store the current centroids, training and validation data."""
         # Store the centroids
         with open(self._path_model / f"{self}", 'w') as file:
-            json.dump(self._centroids, file)
+            json.dump({k: v.tolist() for k, v in self._centroids.items()}, file)
         
         # Store the (validation) clusters
         with open(self._path_data / f"{self}-train", 'w') as file:
@@ -610,7 +619,7 @@ class Clusterer:
         # Load in centroids
         if (self._path_model / f"{self}").is_file():
             with open(self._path_model / str(self), 'r') as file:
-                self._centroids = json.load(file)
+                self._centroids = {k: np.asarray(v, dtype=np.float32) for k, v in json.load(file).items()}
         
         # Load in (validation) clusters
         if (self._path_data / f"{self}-train").is_file():

@@ -3,11 +3,11 @@ from collections import Counter
 from math import log
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
-from tqdm import tqdm
+
 import numpy as np
 import tensorflow as tf
-from sklearn.metrics.pairwise import cosine_similarity
 from tensorboard.plugins import projector
+from tqdm import tqdm
 
 from semi_supervised_clustering.cluster import Clusterer
 from semi_supervised_clustering.embed import Embedder
@@ -163,14 +163,18 @@ class EmbeddingModel:
     def train(
             self,
             data: List[str],
-            batch_size: int = 2048,
-            n_neg: int = 32 * 2048,
-            n_pos: int = 16 * 2048,
+            batch_size: int = 512,
+            n_neg: int = 32 * 512,
+            n_pos: int = 32 * 512,
+            n_replaces: int = 10,
             epochs: int = 5,
             iterations: int = 8,
-            n_validations: int = 20,  # TODO
+            n_val_cluster: int = 10,
+            n_val_discover: int = 2,
+            n_val_uncertain: int = 2,
             show_overview: bool = True,
-    ) -> None:
+            cli: bool = True,
+    ) -> Tuple[List[float], List[Tuple[float,float]], List[int]]:
         """
         Core training algorithm.
         
@@ -192,9 +196,11 @@ class EmbeddingModel:
             try:
                 for i in range(iterations):
                     a, b = self._train_push_pull(
+                            data=data_clean,
                             n_neg=n_neg,
                             n_pos=n_pos,
                             batch_size=batch_size,
+                            n_replaces=n_replaces,
                     )
                     loss.append(a)
                     loss_split.append(b)
@@ -204,36 +210,41 @@ class EmbeddingModel:
             finally:
                 pbar.close()
             
-            # Validate newly clustered samples
-            if epoch != epochs:  # Don't validate on the last epoch
-                print(f"Validating:")
-                self.clusterer.validate(
-                        n=n_validations,
-                        items=self.items,
-                        similarity=cosine_similarity(self.embeddings),
-                        weights=self.counts,  # Weight validation using item-counts
-                )
+            # Set cluster-centroids using new embeddings
+            embeddings = self.embed(data_clean)
+            self.clusterer.set_centroids(
+                    items=data_clean,
+                    embeddings=embeddings,
+            )
             
             # Calculate ratio of samples in cluster
             if show_overview:
-                cluster_ids = self.clusterer(
-                        items=self.items,
-                        similarity=cosine_similarity(self.embeddings),
+                predicted = self(data_clean)
+                counter = Counter(predicted)
+                print(f"\nTraining-clustering overview:")
+                print(f" - Unclustered: {get_percentage(counter[None], sum(counter.values()))}")
+                print(f" - Largest cluster: {max(v for k, v in counter.items() if k)}")
+                print(f" - Average cluster: {sum(v for k, v in counter.items() if k) / len(counter)}")
+                print(f" - Largest cluster: {min(v for k, v in counter.items() if k)}")
+                
+                # Show validation overview
+                self.validate()
+            
+            # Validate newly clustered samples (not on last epoch)
+            if epoch != epochs and cli:
+                self.clusterer.discover_unlabeled(
+                        n_validate_cluster=n_val_cluster,
+                        n_discover=n_val_discover,
+                        n_uncertain=n_val_uncertain,
+                        items=data_clean,
+                        embeddings=embeddings,
+                        weights=data_count,  # Weight validation using item-counts
+                        cli=cli,
                 )
-                n_clustered = 0
-                for i, count in enumerate(self.counts):
-                    if cluster_ids[i]:
-                        n_clustered += count
-                print(f"\nRatio of clustered items: {round(100 * n_clustered / sum(self.counts), 2)}%")
-                n_non_garbage = sum(c for i, c in zip(self.items, self.counts) if i not in self.garbage)
-                print(f"Ratio of clustered non-garbage items: {round(100 * n_clustered / n_non_garbage, 2)}%")
         
-        # Set the cluster centroids ans store the trained model
-        self.clusterer.set_centroids(
-                items=data_clean,
-                embeddings=self.embed(data_clean),
-        )
+        # Store the trained model
         self.store()
+        return loss, loss_split, cluster_count
     
     def validate(
             self,
@@ -250,15 +261,14 @@ class EmbeddingModel:
         :return: List of (input, true-label, predicted-label)
         """
         val_data = val_data if val_data else self.clusterer.get_validation_data()
+        if not val_data:
+            return []
         x, y = zip(*val_data)
         predicted_clusters = self(x)
         
         # Print the result if requested
         if print_result:
-            def get_percentage(a, b) -> str:
-                return f"{round(100 * a / b, 2)}% ({a}/{b})"
-            
-            print(f"Validation result:")
+            print(f"\nValidation result:")
             n_correct = sum([true == pred for true, pred in zip(y, predicted_clusters)])
             print(f" - Accuracy: {get_percentage(n_correct, len(x))}")
             n_unclustered = sum([pred is None for pred in predicted_clusters])
@@ -272,8 +282,8 @@ class EmbeddingModel:
             self,
             data: List[str],
             embeddings: np.ndarray,
-            batch_size: int = 1024,
-            n_replaces: int = 5,
+            batch_size: int = 512,
+            n_replaces: int = 10,
     ) -> float:
         """
         Initialise the embedding-model using pre-existing sentence embeddings.
@@ -296,51 +306,57 @@ class EmbeddingModel:
             data: List[str],
             n_neg: int,
             n_pos: int,
-            batch_size: int = 1024,
-            n_replaces: int = 5,
+            batch_size: int = 512,
+            n_replaces: int = 10,
     ) -> Tuple[float, Tuple[float, float]]:
         """Perform a single push-pull training."""
-        embeddings = None  # TODO: Use model to get embeddings for data
         # Negative sampling
         x, y = zip(*self.clusterer.sample_negative(
                 n=n_neg,
                 items=data,
-                embeddings=embeddings,
+                embeddings=self.embed(data),
                 n_replaces=n_replaces,
         ))
         x = self.encoder.encode_batch(x, sample=True)
         y = np.vstack(y)
+        # if len(x) < (n_neg / 5):
+        #     print(f"Negative sampling is significantly under-sampled:")
+        #     print(f" - Only {len(x)} samples drawn (target-amount={n_neg}, batch-size={batch_size})")
+        #     print(f" - Consider increasing n_replaces or annotating more samples")
         loss_neg = self.embedder.train_negative(x=x, y=y, batch_size=batch_size)
         
         # Positive sampling
-        embeddings = None  # TODO: Use model to get embeddings for data
         x, y = zip(*self.clusterer.sample_positive(
                 n=n_pos,
                 items=data,
-                embeddings=embeddings,
+                embeddings=self.embed(data),
                 n_replaces=n_replaces,
         ))
         x = self.encoder.encode_batch(x, sample=True)
         y = np.vstack(y)
+        # if len(x) < (n_pos / 5):
+        #     print(f"Positive sampling is significantly under-sampled:")
+        #     print(f" - Only {len(x)} samples drawn (target-amount={n_pos}, batch-size={batch_size})")
+        #     print(f" - Consider increasing n_replaces or annotating more samples")
         loss_pos = self.embedder.train_positive(x=x, y=y, batch_size=batch_size)
         return (loss_neg + loss_pos) / 2, (loss_neg, loss_pos)  # Return the average loss
     
     def visualise_tensorboard(
             self,
-            items: List[str],
+            data: List[str],
             path_projector: Path,
     ) -> None:
         """TODO"""
         write_path = path_projector / f'{self.name}'
-        write_path.mkdir(exist_ok=True)
+        write_path.mkdir(exist_ok=True, parents=True)
         
-        # Predict all the clusters
-        embeddings = self.model(self.encoder(items))  # Assure current embeddings are used
-        representatives = self.cluster(items, similarity=cosine_similarity(embeddings))
+        # Get data embeddings and predict all the clusters
+        embeddings = self.embed(data)
+        representatives = self(data)
         
         # Save Labels separately on a line-by-line manner.
         with open(write_path / f'metadata.tsv', "w") as f:
-            joint = [f'{name}\t{rep}' for name, rep in zip(items, representatives)]
+            joint = [f'{name}\t{rep}' for name, rep in zip(data, representatives)]
             f.write('Name\tCluster\n' + '\n'.join(joint) + '\n')
         
         # Save the weights we want to analyse as a variable. Note that the first value represents any unknown word,
@@ -366,14 +382,19 @@ class EmbeddingModel:
         print("\nOr run tensorboard in notebook:")
         print(f"%load_ext tensorboard")
         print(f"%tensorboard --logdir {write_path}")
-        
+    
     def store(self):
         """Store all the sub-components of the model."""
         self.embedder.store()
         self.clusterer.store()
-        
+    
     def load(self):
         """Load in all the sub-components of the model."""
         self.embedder.load()
         self.encoder.load()
         self.clusterer.load()
+
+
+def get_percentage(a, b) -> str:
+    """Print percentage ratio of a/b."""
+    return f"{round(100 * a / b, 2)}% ({a}/{b})"

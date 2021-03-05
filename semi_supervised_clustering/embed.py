@@ -58,7 +58,7 @@ class Embedder:
     
     def __call__(self, inputs: np.ndarray) -> np.ndarray:
         """Embed the given input."""
-        return self._model(inputs)
+        return self._model(inputs).numpy()
     
     def create_model(
             self,
@@ -76,7 +76,6 @@ class Embedder:
         for i, layer_size in enumerate(self._layers[:-1]):
             x = tf.keras.layers.Dense(
                     layer_size,
-                    activation='relu',  # TODO: Good choice? --> Dead units as result of overfit?
                     name=f'Dense-{i}',
             )(x)
         
@@ -111,6 +110,7 @@ class Embedder:
                 outputs=x,
                 name=str(self),
         )
+        self._model.compile(optimizer='adam')
         if show_overview:
             self._model.summary()
         self.store()
@@ -119,7 +119,7 @@ class Embedder:
             self,
             x: np.ndarray,
             y: np.ndarray,
-            batch_size: int = 1024,
+            batch_size: int = 512,
     ) -> float:
         """Train a positive-sampling sequence for the model and return the corresponding loss."""
         self._model.compile(optimizer='adam', loss=self._positive_loss)
@@ -129,7 +129,7 @@ class Embedder:
             self,
             x: np.ndarray,
             y: np.ndarray,
-            batch_size: int = 1024,
+            batch_size: int = 512,
     ) -> float:
         """Train a negative-sampling sequence for the model and return the corresponding loss."""
         self._model.compile(optimizer='adam', loss=self._negative_loss)
