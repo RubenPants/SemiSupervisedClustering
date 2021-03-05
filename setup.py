@@ -12,10 +12,10 @@ README = (HERE / "README.md").read_text()
 LICENCE = (HERE / "LICENCE").read_text()
 
 INSTALL_REQUIRES = [
-    "tensorflow~=2.4.1`",
-    "sentencepiece~=0.1.95`",
-    "scikit-learn~=0.24.1`",
-    "tqdm~=4.58.0`",
+    "tensorflow>=2.4.0",
+    "sentencepiece~=0.1.95",
+    "scikit-learn~=0.24.1",
+    "tqdm~=4.58.0",
 ]
 
 # noinspection SpellCheckingInspection
