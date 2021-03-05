@@ -15,7 +15,6 @@ class Embedder:
             input_size: int,
             layers: List[int],
             path: Path,
-            attention: bool = True,
             normalise: bool = True,
     ) -> None:
         """
@@ -25,14 +24,12 @@ class Embedder:
         :param input_size: Input size of the model
         :param layers: Dense layers of the model, in chronological order (last layer is the embedding space)
         :param path: Path under which the model is saved
-        :param attention: Whether or not to use attention on the embedding-layer (last layer)
         :param normalise: Whether or not to normalise the model's outputs
         """
         assert len(layers) >= 1
         self._name = name
         self._input_size = input_size
         self._layers = layers
-        self._attention = attention
         self._normalise = normalise
         self._path = path
         self._model: Optional[tf.keras.Model] = None
@@ -48,7 +45,6 @@ class Embedder:
             f"{self._name}-"
             f"{self._input_size}-"
             f"{'-'.join([f'{l}' for l in self._layers])}"
-            f"{'-attention' if self._attention else ''}"
             f"{'-normalised' if self._normalise else ''}"
         )
     
@@ -85,17 +81,6 @@ class Embedder:
                 activation='tanh',
                 name='Dense-output',
         )(x)
-        
-        # Perform attention on the output layer, if requested
-        if self._attention:
-            query = tf.keras.layers.Dense(
-                    self._layers[-1],
-                    activation='sigmoid',  # Gate
-                    name='AttentionKey',
-            )(inputs)
-            x = tf.keras.layers.Attention(
-                    name='Attention'
-            )([query, x])
         
         # Normalise the output layer, if requested
         if self._normalise:
@@ -135,6 +120,23 @@ class Embedder:
         self._model.compile(optimizer='adam', loss=self._negative_loss)
         return self._model.fit(x, y, batch_size=batch_size, verbose=0).history['loss'][0]
     
+    def store(self) -> None:
+        """Store the current model state."""
+        self._model.save(self._path / str(self))
+    
+    def load(self) -> bool:
+        """Try to load a pretrained model and return its success."""
+        if (self._path / str(self)).is_dir():
+            self._model = tf.keras.models.load_model(
+                    self._path / str(self),
+                    custom_objects={
+                        '_positive_loss': self._positive_loss,
+                        '_negative_loss': self._negative_loss,
+                    },
+            )
+            return True
+        return False
+    
     def _positive_loss(self, y_true, y_pred) -> Any:
         """MAE loss on the dot-difference for positive sampling."""
         y_true = tf.reshape(y_true, (-1, self._layers[-1]), name='reshape_y_true')
@@ -156,20 +158,3 @@ class Embedder:
                 1.,
                 tf.math.maximum(100 * diff, 1e-5)
         )
-    
-    def store(self) -> None:
-        """Store the current model state."""
-        self._model.save(self._path / str(self))
-    
-    def load(self) -> bool:
-        """Try to load a pretrained model and return its success."""
-        if (self._path / str(self)).is_dir():
-            self._model = tf.keras.models.load_model(
-                    self._path / str(self),
-                    custom_objects={
-                        '_positive_loss': self._positive_loss,
-                        '_negative_loss': self._negative_loss,
-                    },
-            )
-            return True
-        return False

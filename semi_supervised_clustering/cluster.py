@@ -129,6 +129,10 @@ class Clusterer:
                 self._clusters_val[clean] = c_id
         self.store()
     
+    def get_training_data(self) -> List[Tuple[str, Optional[str]]]:
+        """Return the validation data as (input_value, target_cluster_id)."""
+        return [(k, v) for k, v in self._clusters.items()]  # Odd typing bug if list(.items())
+    
     def get_validation_data(self) -> List[Tuple[str, Optional[str]]]:
         """Return the validation data as (input_value, target_cluster_id)."""
         return [(k, v) for k, v in self._clusters_val.items()]  # Odd typing bug if list(.items())
@@ -169,16 +173,6 @@ class Clusterer:
     def get_cluster_count(self) -> int:
         """Count the number of clusters."""
         return len({v for v in self._clusters.values() if v})
-    
-    def synchronise(
-            self,
-            data: List[str],
-    ) -> None:  # TODO: Check validation as well?
-        """Synchronise the clusters with the given data by removing the items that don't occur in the data."""
-        data = {self.clean_f(d) for d in data}
-        for k in sorted(self._clusters.keys()):
-            if k not in data:
-                del self._clusters[k]
     
     def get_centroids(
             self,
@@ -304,7 +298,7 @@ class Clusterer:
         
         def get_repulsion_vector(item: str) -> np.ndarray:
             """Get a repulsion vector for the given item."""
-            other = choice([other for other in self._clusters if self._clusters[other] != self._clusters[item]])
+            other = choice([other for other in self._clusters.keys() if self._clusters[other] != self._clusters[item]])
             
             # If other belongs to cluster, repulse from cluster's centroid
             if self._clusters[other]:
@@ -433,7 +427,7 @@ class Clusterer:
             item_similarities.append((similarity[i, idx], (items[i], cluster_ids[idx])))
         
         # Update the weights with the similarity-scores and sample unclustered validation items
-        weights = [max(0, w * (1 - abs(self._sim_thr - sim[0]))) for w, sim in zip(weights, item_similarities)]
+        weights = [max(0., w * self._transform_sim(sim[0])) for w, sim in zip(weights, item_similarities)]
         chosen_indices = np.random.choice(
                 range(len(items)),
                 size=n,
@@ -628,3 +622,16 @@ class Clusterer:
         if (self._path_data / f"{self}-val").is_file():
             with open(self._path_data / f"{self}-val", 'r') as file:
                 self._clusters_val = json.load(file)
+    
+    def _transform_sim(self, x: float) -> float:
+        """
+        Transform the similarity-score x to be maximal when close to the threshold, and lower else.
+        
+        This follows the assumption that x is between 0 and 1, where 1 is the cluster's center.
+        
+        :param x: Similarity-score
+        :return: Transformed score
+        """
+        x = max(0.0, x)
+        max_diff = self._sim_thr if x < self._sim_thr else (1 - self._sim_thr)
+        return max(0., 1. - abs(x - self._sim_thr) / max_diff)

@@ -5,3 +5,7 @@ Cluster context-less language data in a semi-supervised manner.
 ```
 pip install ???
 ```
+
+## TODO
+ - README: Explain context-less
+ - README: Explain strength in handling noise

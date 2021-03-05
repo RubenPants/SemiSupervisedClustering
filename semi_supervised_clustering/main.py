@@ -26,7 +26,6 @@ class EmbeddingModel:
             vocab_size: int = 300,
             encoder_type: str = 'bpe',
             model_layers: List[int] = (100, 100,),
-            attention: bool = True,
             normalise: bool = True,
             cluster_thr: float = .9,
     ) -> None:
@@ -45,7 +44,6 @@ class EmbeddingModel:
         :param vocab_size: Size of the encoder's vocabulary (which is also the embedder's input-size)
         :param encoder_type: Type of SentencePiece encoder used
         :param model_layers: Dense layers of the model, in chronological order (last layer is the embedding space)
-        :param attention: Whether or not to perform attention on the model's layers (input as query)
         :param normalise: Whether or not to normalise the model's outputs
         :param cluster_thr: Similarity threshold (cosine) to exceed before getting assigned to a cluster
         """
@@ -71,7 +69,6 @@ class EmbeddingModel:
                 name=name,
                 input_size=vocab_size,
                 layers=model_layers,
-                attention=attention,
                 normalise=normalise,
                 path=self.path_model,
         )
@@ -105,11 +102,11 @@ class EmbeddingModel:
             self,
             data: List[str],
             reset: bool = False,
-            n_min_clusters: int = 3,
+            n_min_clusters: int = 5,
             show_overview: bool = True,
-    ):
+    ) -> None:
         """
-        Initialise the models.
+        Initialise the models and annotate some clusters in order to start the training process.
         
         :param data: Data to initialise the models with
         :param reset: Reset previously progress made, cannot be undone
@@ -130,7 +127,6 @@ class EmbeddingModel:
         # Reset the clusterer, if requested
         if reset:
             self.clusterer.reset()
-        self.clusterer.synchronise(data)
         if show_overview:
             self.clusterer.show_overview()
         
@@ -147,17 +143,22 @@ class EmbeddingModel:
             self.embedder.train_negative(x=x, y=y, batch_size=1024)
             
             # Create initial clusters
-            while self.clusterer.get_cluster_count() < n_min_clusters:
+            updated = True
+            while self.clusterer.get_cluster_count() < n_min_clusters or updated:
                 score, proposal = self.clusterer.discover_new_cluster(
                         n=1,
                         items=items,
                         embeddings=self.embedder(self.encoder(items)),
                         weights=[log(c) for c in counts],
                 )[0]
+                n_before = self.clusterer.get_cluster_count()
                 self.clusterer.validate_cli(
                         item=proposal,
                         sim=score,
                 )
+                
+                # Ensure to keep annotating as long as new clusters continue to get discovered
+                updated = n_before != self.clusterer.get_cluster_count()
             print(f"\nFinished annotating new data samples")
     
     def train(
@@ -166,7 +167,7 @@ class EmbeddingModel:
             batch_size: int = 512,
             n_neg: int = 32 * 512,
             n_pos: int = 32 * 512,
-            n_replaces: int = 10,
+            n_replaces: int = 20,
             epochs: int = 5,
             iterations: int = 8,
             n_val_cluster: int = 10,
@@ -174,18 +175,33 @@ class EmbeddingModel:
             n_val_uncertain: int = 2,
             show_overview: bool = True,
             cli: bool = True,
-    ) -> Tuple[List[float], List[Tuple[float,float]], List[int]]:
+    ) -> Tuple[List[float], List[Tuple[float, float]]]:
         """
-        Core training algorithm.
+        Train the embedding model using the supervised clusters.
         
-        TODO
+        This training step re-shapes the global embedding-space by manipulating the embeddings associated with the
+        supervised (known) cluster-data.
+        
+        :param data: Data on which is trained, this data is extended with the known cluster-data
+        :param batch_size: Batch-size used during training
+        :param n_neg: Number of negative samples sampled each iteration at most
+        :param n_pos: Number of positive samples sampled each iteration at most
+        :param n_replaces: Number of replaces used per sample during positive/negative sampling
+        :param epochs: Number of training/validation epochs (last epoch is not validated)
+        :param iterations: Number of iterations between validations
+        :param n_val_cluster: Number of samples validated that are close to a cluster-boundary
+        :param n_val_discover: Number of potential new clusters discovered during validation
+        :param n_val_uncertain: Number of uncertain samples (those that may belong to more than one cluster) validated
+        :param show_overview: Show/print overview of the training process each iteration
+        :param cli: Validate using the CLI, if False the training will continue without validation
+        :return: Global loss (list of floats), split-loss (list of (neg_loss, pos_loss))
         """
         if not self.clusterer.get_cluster_count():
             raise Exception("Initialise the models first, as well as some initial labels")
         
         # Initialise training
-        data_clean, data_count = zip(*sorted(Counter([self.clean_f(d) for d in data]).items(), key=lambda x: x[1]))
-        loss, loss_split, cluster_count = [], [], [self.clusterer.get_cluster_count(), ]
+        data_clean, data_count = self._transform_data(data=data)
+        loss, loss_split = [], []
         
         # Train the model
         for epoch in range(1, epochs + 1):
@@ -204,7 +220,6 @@ class EmbeddingModel:
                     )
                     loss.append(a)
                     loss_split.append(b)
-                    cluster_count.append(self.clusterer.get_cluster_count())
                     pbar.set_description(f"Loss {round(loss[-1], 5)}")
                     pbar.update()
             finally:
@@ -244,7 +259,7 @@ class EmbeddingModel:
         
         # Store the trained model
         self.store()
-        return loss, loss_split, cluster_count
+        return loss, loss_split
     
     def validate(
             self,
@@ -272,10 +287,13 @@ class EmbeddingModel:
             n_correct = sum([true == pred for true, pred in zip(y, predicted_clusters)])
             print(f" - Accuracy: {get_percentage(n_correct, len(x))}")
             n_unclustered = sum([pred is None for pred in predicted_clusters])
-            print(f" - Clustered: {get_percentage(len(x) - n_unclustered, len(x))}")
-            print(f" - Unclustered: {get_percentage(n_unclustered, len(x))}")
+            print(f" - None-cluster: {get_percentage(n_unclustered, len(x))}")
+            print(f" - Not-None cluster: {get_percentage(len(x) - n_unclustered, len(x))}")
+            n_correct_cl = sum([pred is not None and true == pred for true, pred in zip(y, predicted_clusters)])
+            n_not_none = len([c_id for c_id in y if c_id])
+            print(f" - Correct cluster (not-None): {get_percentage(n_correct_cl, n_not_none)}")
             n_incorrect_cl = sum([pred is not None and true != pred for true, pred in zip(y, predicted_clusters)])
-            print(f" - Incorrectly clustered: {get_percentage(n_incorrect_cl, len(x))}")
+            print(f" - Wrong cluster (not-None): {get_percentage(n_incorrect_cl, n_not_none)}")
         return list(zip(x, y, predicted_clusters))
     
     def initialise_embeddings(
@@ -283,7 +301,7 @@ class EmbeddingModel:
             data: List[str],
             embeddings: np.ndarray,
             batch_size: int = 512,
-            n_replaces: int = 10,
+            n_replaces: int = 20,
     ) -> float:
         """
         Initialise the embedding-model using pre-existing sentence embeddings.
@@ -295,58 +313,23 @@ class EmbeddingModel:
         :return: Final training loss
         """
         assert len(data) == len(embeddings)
-        data *= n_replaces
+        data = [self.clean_f(d) for d in data] * n_replaces
         x = self.encoder.encode_batch(data, sample=True)
         y = np.vstack([embeddings, ] * n_replaces)
         loss = self.embedder.train_positive(x=x, y=y, batch_size=batch_size)
         return loss
-    
-    def _train_push_pull(
-            self,
-            data: List[str],
-            n_neg: int,
-            n_pos: int,
-            batch_size: int = 512,
-            n_replaces: int = 10,
-    ) -> Tuple[float, Tuple[float, float]]:
-        """Perform a single push-pull training."""
-        # Negative sampling
-        x, y = zip(*self.clusterer.sample_negative(
-                n=n_neg,
-                items=data,
-                embeddings=self.embed(data),
-                n_replaces=n_replaces,
-        ))
-        x = self.encoder.encode_batch(x, sample=True)
-        y = np.vstack(y)
-        # if len(x) < (n_neg / 5):
-        #     print(f"Negative sampling is significantly under-sampled:")
-        #     print(f" - Only {len(x)} samples drawn (target-amount={n_neg}, batch-size={batch_size})")
-        #     print(f" - Consider increasing n_replaces or annotating more samples")
-        loss_neg = self.embedder.train_negative(x=x, y=y, batch_size=batch_size)
-        
-        # Positive sampling
-        x, y = zip(*self.clusterer.sample_positive(
-                n=n_pos,
-                items=data,
-                embeddings=self.embed(data),
-                n_replaces=n_replaces,
-        ))
-        x = self.encoder.encode_batch(x, sample=True)
-        y = np.vstack(y)
-        # if len(x) < (n_pos / 5):
-        #     print(f"Positive sampling is significantly under-sampled:")
-        #     print(f" - Only {len(x)} samples drawn (target-amount={n_pos}, batch-size={batch_size})")
-        #     print(f" - Consider increasing n_replaces or annotating more samples")
-        loss_pos = self.embedder.train_positive(x=x, y=y, batch_size=batch_size)
-        return (loss_neg + loss_pos) / 2, (loss_neg, loss_pos)  # Return the average loss
     
     def visualise_tensorboard(
             self,
             data: List[str],
             path_projector: Path,
     ) -> None:
-        """TODO"""
+        """
+        Visualise the resulting embeddings and clusters using TensorBoard.
+        
+        :param data: Data to embed and visualise
+        :param path_projector: Path where projector-assets are stored
+        """
         write_path = path_projector / f'{self.name}'
         write_path.mkdir(exist_ok=True, parents=True)
         
@@ -393,6 +376,56 @@ class EmbeddingModel:
         self.embedder.load()
         self.encoder.load()
         self.clusterer.load()
+    
+    def _transform_data(
+            self,
+            data: List[str],
+    ) -> Tuple[List[str], List[int]]:
+        """Transform the data by cleaning, counting and adding missing cluster data."""
+        # Clean and count provided data
+        data_clean, data_count = zip(*sorted(Counter([self.clean_f(d) for d in data]).items(), key=lambda x: x[1]))
+        data_clean = list(data_clean)
+        data_count = list(data_count)
+        
+        # Append missing cluster-data with average frequency
+        avg_freq = max(1, round(sum(data_count) / len(data_count)))
+        for k, _ in self.clusterer.get_training_data() + self.clusterer.get_validation_data():
+            if k not in data_clean:
+                data_clean.append(k)
+                data_count.append(avg_freq)
+        return data_clean, data_count
+    
+    def _train_push_pull(
+            self,
+            data: List[str],
+            n_neg: int,
+            n_pos: int,
+            batch_size: int = 512,
+            n_replaces: int = 20,
+    ) -> Tuple[float, Tuple[float, float]]:
+        """Perform a single push-pull training."""
+        # Negative sampling
+        x, y = zip(*self.clusterer.sample_negative(
+                n=n_neg,
+                items=data,
+                embeddings=self.embed(data),
+                n_replaces=n_replaces,
+        ))
+        x = self.encoder.encode_batch(x, sample=True)
+        y = np.vstack(y)
+        loss_neg = self.embedder.train_negative(x=x, y=y, batch_size=batch_size)
+        
+        # Positive sampling
+        x, y = zip(*self.clusterer.sample_positive(
+                n=n_pos,
+                items=data,
+                embeddings=self.embed(data),
+                n_replaces=n_replaces,
+        ))
+        x = self.encoder.encode_batch(x, sample=True)
+        y = np.vstack(y)
+        loss_pos = self.embedder.train_positive(x=x, y=y, batch_size=batch_size)
+        return (loss_neg + loss_pos) / 2, (loss_neg, loss_pos)  # Return the average loss
 
 
 def get_percentage(a, b) -> str:
