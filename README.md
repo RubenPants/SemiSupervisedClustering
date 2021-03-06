@@ -92,6 +92,9 @@ To maximise clustering accuracy, the embedding-space is reshaped at each iterati
 - **Push:** Let two samples that do not belong in the same cluster repulse each other.
 - **Pull:** Pull two samples that belong in the same cluster together.
 
+The loss functions corresponding these two training steps are shown in the image below (*push* in red, where *pull* in green).
+![Loss functions](img/loss_functions.png)
+
 Training happens with several iterations of these push-pulls, alternated with a validation-step at the end of each epoch. This validation-step proposes new samples to validate, of which the model is uncertain. This helps to label the more relevant samples, with the result that less samples should get labeled before getting satisfactory results. To help validating clusters, a CLI prompt is provided (if requested).
 
 At inference, all samples that are *close enough* to a cluster's centroid are considered to be in that cluster. This cluster centroid is the mean embedding of all the labeled sample's embeddings that belong to that cluster. The similarity metric used is cosine-similarity. To handle the trade-off between precision and recall, the similarity-threshold can be updated, where a lower threshold would favor recall at the cost of precision. The default similarity threshold is equal to `0.9`.
