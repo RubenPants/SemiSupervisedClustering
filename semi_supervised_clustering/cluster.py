@@ -600,13 +600,13 @@ class Clusterer:
         """Store the current centroids, training and validation data."""
         # Store the centroids
         with open(self._path_model / f"{self}", 'w') as file:
-            json.dump({k: v.tolist() for k, v in self._centroids.items()}, file)
+            json.dump({k: v.tolist() for k, v in self._centroids.items()}, file, sort_keys=True)
         
         # Store the (validation) clusters
         with open(self._path_data / f"{self}-train", 'w') as file:
-            json.dump(self._clusters, file, indent=2)
+            json.dump(self._clusters, file, indent=2, sort_keys=True)
         with open(self._path_data / f"{self}-val", 'w') as file:
-            json.dump(self._clusters_val, file, indent=2)
+            json.dump(self._clusters_val, file, indent=2, sort_keys=True)
     
     def load(self) -> None:
         """Load in previously-created centroids, training and validation data."""

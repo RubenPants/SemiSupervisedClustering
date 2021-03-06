@@ -103,7 +103,7 @@ class EmbeddingModel:
             data: List[str],
             reset: bool = False,
             n_min_clusters: int = 5,
-            show_overview: bool = True,
+            show_overview: bool = False,
     ) -> None:
         """
         Initialise the models and annotate some clusters in order to start the training process.
@@ -173,8 +173,8 @@ class EmbeddingModel:
             n_val_cluster: int = 10,
             n_val_discover: int = 2,
             n_val_uncertain: int = 2,
-            show_overview: bool = True,
-            cli: bool = True,
+            show_overview: bool = False,
+            cli: bool = False,
     ) -> Tuple[List[float], List[Tuple[float, float]]]:
         """
         Train the embedding model using the supervised clusters.
@@ -264,7 +264,7 @@ class EmbeddingModel:
     def validate(
             self,
             val_data: Optional[Tuple[str, str]] = None,
-            print_result: bool = True,
+            print_result: bool = False,
     ) -> List[Tuple[str, Optional[str], Optional[str]]]:
         """
         Validate the model.
