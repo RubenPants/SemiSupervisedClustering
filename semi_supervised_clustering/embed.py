@@ -4,6 +4,7 @@ from typing import Any, List, Optional
 
 import numpy as np
 import tensorflow as tf
+from tqdm import tqdm
 
 
 class Embedder:
