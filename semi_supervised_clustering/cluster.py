@@ -271,18 +271,18 @@ class Clusterer:
             n: int,
             items: List[str],
             embeddings: np.ndarray,
-            max_none_ratio: float = 1 / 4,
+            max_replaces: int = 10,
     ) -> List[Tuple[str, np.ndarray]]:
         """
         Sample negative items from the clusters together with a repulsion-vector.
 
-        Sample any two items that are not in the same approximated cluster. To balance inter-cluster repulsion, an equal
-        amount of samples is drawn from every cluster.
+        Every sampled couple consists of a labeled item (x) and a cluster-centroid (y) from a cluster different from the
+        cluster to which x belongs. Note that the None-cluster doesn't have a centroid.
 
         :param n: Number of samples
         :param items: Input-items to select from (assumed to be cleaned)
         :param embeddings: Embeddings used to determine the centroids
-        :param max_none_ratio: Maximum ratio of Garbage-samples (belong to None-cluster) sampled
+        :param max_replaces: Maximum number of times an item can be replaced during sampling
         :return: List of samples together with their corresponding (repulsion) vector
         """
         assert self._clusters
@@ -291,36 +291,17 @@ class Clusterer:
         # Update the cluster-centroids using the provided embeddings
         centroids = self.get_centroids(items=items, embeddings=embeddings)
         
-        # sample items from None-clusters, keep None-ratio
-        value_count = Counter(self._clusters.values())
-        none_keys = [k for k, v in self._clusters.items() if not v]
-        none_ratio = min(max_none_ratio, value_count[None] / sum(value_count.values()))
-        samples_uncluster = np.random.choice(none_keys, size=round(n * none_ratio)).tolist()
-        
-        # Fill remaining places with items from known clusters, sample equally across clusters
-        cluster_ratio = 1 - none_ratio
-        samples_per_cluster = max(1, round((n * cluster_ratio) / self.get_cluster_count()))
-        samples_cluster = []
-        for c_id in self.get_all_cluster_ids():
-            samples_cluster += np.random.choice(self.get_cluster_by_id(c_id), size=samples_per_cluster).tolist()
-        
-        # Get embeddings of None-cluster's values in advance
-        none_keys = {k for k, v in self._clusters.items() if not v}
-        none_embeddings = {item: emb for item, emb in zip(items, embeddings) if item in none_keys}
+        # Enlist all sampling options
+        known_items = list(set(self._clusters.keys()) & set(items))
+        known_items *= max_replaces
         
         def get_repulsion_vector(item: str) -> np.ndarray:
             """Get a repulsion vector for the given item."""
-            other = choice([other for other in self._clusters.keys() if self._clusters[other] != self._clusters[item]])
-            
-            # If other belongs to cluster, repulse from cluster's centroid
-            if self._clusters[other]:
-                return centroids[self._clusters[other]]
-            else:
-                return none_embeddings[other]
+            return centroids[choice([c_id for c_id in self.get_all_cluster_ids() if c_id != self._clusters[item]])]
         
         # Sample with (limited) replacement, unweighted sampling
         result = []
-        for sample in samples_uncluster + samples_cluster:
+        for sample in np.random.choice(known_items, size=min(n, len(known_items)), replace=False):
             result.append((sample, get_repulsion_vector(sample)))
         return result
     
