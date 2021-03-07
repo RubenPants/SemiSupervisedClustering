@@ -142,12 +142,14 @@ class EmbeddingModel:
             
             # Create initial clusters
             updated = True
+            embeddings = self.embedder(self.encoder(data_clean))
+            weights = [log(c) for c in data_count]
             while self.clusterer.get_cluster_count() < n_min_clusters or updated:
                 score, proposal = self.clusterer.discover_new_cluster(
                         n=1,
                         items=data_clean,
-                        embeddings=self.embedder(self.encoder(data_clean)),
-                        weights=[log(c) for c in data_count],
+                        embeddings=embeddings,
+                        weights=weights,
                 )[0]
                 n_before = self.clusterer.get_cluster_count()
                 self.clusterer.validate_cli(
