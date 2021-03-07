@@ -300,23 +300,41 @@ class EmbeddingModel:
             self,
             data: List[str],
             embeddings: np.ndarray,
+            iterations: int = 8,
             batch_size: int = 512,
             n_replaces: int = 20,
-    ) -> float:
+    ) -> List[float]:
         """
         Initialise the embedding-model using pre-existing sentence embeddings.
         
         :param data: Sentence data used to train on
         :param embeddings: Pre-existing sentence embedding corresponding the sentence data
+        :param iterations: Number of iterations between validations
         :param batch_size: Batch-size used during training
         :param n_replaces: Number of times the same data-sample is sampled during training
         :return: Final training loss
         """
         assert len(data) == len(embeddings)
+        
+        # Initialise fitting of provided embeddings
         data = [self.clean_f(d) for d in data] * n_replaces
-        x = self.encoder.encode_batch(data, sample=True)
         y = np.vstack([embeddings, ] * n_replaces)
-        loss = self.embedder.train_positive(x=x, y=y, batch_size=batch_size)
+        loss = []
+        
+        # Fit pre-trained embeddings on provided data
+        pbar = tqdm(total=iterations, desc="Loss ???")
+        try:
+            for i in range(iterations):
+                x = self.encoder.encode_batch(data, sample=True)  # Re-sample every iteration
+                loss.append(self.embedder.train_positive(
+                        x=x,
+                        y=y,
+                        batch_size=batch_size,
+                ))
+                pbar.set_description(f"Loss {round(loss[-1], 5)}")
+                pbar.update()
+        finally:
+            pbar.close()
         return loss
     
     def visualise_tensorboard(

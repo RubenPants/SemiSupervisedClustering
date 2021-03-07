@@ -131,11 +131,11 @@ class Clusterer:
     
     def get_training_data(self) -> List[Tuple[str, Optional[str]]]:
         """Return the validation data as (input_value, target_cluster_id)."""
-        return [(k, v) for k, v in self._clusters.items()]  # Odd typing bug if list(.items())
+        return [(k, v) for k, v in sorted(self._clusters.items(), key=lambda x: (x[1] if x[1] else '', x[0]))]
     
     def get_validation_data(self) -> List[Tuple[str, Optional[str]]]:
         """Return the validation data as (input_value, target_cluster_id)."""
-        return [(k, v) for k, v in self._clusters_val.items()]  # Odd typing bug if list(.items())
+        return [(k, v) for k, v in sorted(self._clusters_val.items(), key=lambda x: (x[1] if x[1] else '', x[0]))]
     
     def reset(self):
         """Reset clusterer by removing previously labeled data, cannot be undone."""

@@ -9,8 +9,8 @@ adeb vba ulb vub	Free University of Brussels
 advanced management bij vlerick	Vlerick Business School
 agent de maintenance en eolien	None
 agentschap voor hoger onderwijs volwassenenonderwijs	None
-ahsal management school brussels	None
-aig ucl louvain la neuve	None
+ahsal management school brussels	Solvay Business School
+aig ucl louvain la neuve	Catholic University of Leuven
 alcatel university antwerpen	None
 amelior gent	None
 antwerp management school	None
@@ -47,7 +47,7 @@ brussel	Free University of Brussels
 brussel formation	Free University of Brussels
 brussel opleiding	Free University of Brussels
 brussels chamber of commerce	None
-brussels polytechnical school	Solvay Business School
+brussels polytechnical school	None
 c t l gent	Catholic University of Leuven
 c v o gent	None
 c v o leuven landen	None
@@ -83,7 +83,7 @@ de lindelei gent	None
 don bosco te hoboken antwerpen	None
 e h s a l brussel	None
 ecam brussel	Free University of Brussels
-ecam brussels	None
+ecam brussels	Free University of Brussels
 ecam brussels engineering	None
 ecam brussels engineering school	None
 echo khleuven	None
@@ -144,10 +144,10 @@ groept hogeschool leuven	None
 groept ku leuven	Catholic University of Leuven
 groept leuven	Catholic University of Leuven
 groept t leuven	Catholic University of Leuven
-group t faculteit industriële ingenieurswetenschappen kuleuven	Catholic University of Leuven
+group t faculteit industriële ingenieurswetenschappen kuleuven	None
 group t leuven	Catholic University of Leuven
 groupt leuven	Catholic University of Leuven
-guberna vlerick business school	Vlerick Business School
+guberna vlerick business school	None
 h i t a antwerp belgium	None
 h r i t h o gent	None
 h r i t o hasselt	None
@@ -180,7 +180,7 @@ hogent	None
 hogent bme	None
 hogent campus schoonmeersen	None
 hogent indertijd nog hogeschool ipv unief	None
-hogent unief gent	University of Ghent
+hogent unief gent	None
 hoger rijksinstituut brussel	None
 hoger rijksinstituut voor chemie en voedingsindustrieen gent	None
 hogere zeevaartschool antwerpen	None
@@ -220,7 +220,7 @@ hogeschool limburg hasselt xios	None
 hogeschool prov antwerpen	None
 hogeschool provincie antwerpen campus boom	None
 hogeschool sint lukas brussel	None
-hogeschool universiteit brussel	None
+hogeschool universiteit brussel	Free University of Brussels
 hogeschool vd provincie antwerpen	None
 hogeschool wetenschap en kunst in brussel	None
 hogschool gent	None
@@ -243,11 +243,11 @@ i h b m e gent	None
 i h s r b m e gent	None
 i h s r gent	None
 i l t k u l leuven	Catholic University of Leuven
-iag louvain la neuve	None
+iag louvain la neuve	Catholic University of Leuven
 iag universite catholique de louvain	Catholic University of Leuven
 ibm brussel	Free University of Brussels
-icc brussels	Solvay Business School
-icrc brussels	Solvay Business School
+icc brussels	None
+icrc brussels	None
 iczo antwerp instituut voor complementair zorg onderwijs	Catholic University of Leuven
 ih bme gent	None
 ih groep te leuven	Catholic University of Leuven
@@ -265,11 +265,11 @@ ihr brussel	Free University of Brussels
 ihr gent	None
 ihr hasselt mol	None
 ihrb industriele hogeschool brussel	None
-ihrh hasselt	University of Hasselt
+ihrh hasselt	None
 ihsr bme gent	None
 ihsr gent	None
 ihsr voskeslaan gent	None
-ilt kuleuven	None
+ilt kuleuven	Catholic University of Leuven
 imov gent	None
 ind hogeschool bme gent	None
 ind hogeschool te gent en ulb	None
@@ -288,7 +288,7 @@ industriele hogeschool antwerpen mechelen	None
 industriele hogeschool brussel	None
 industriele hogeschool brussel erasmus	None
 industriele hogeschool gent	None
-industriele hogeschool groep t leuven	None
+industriele hogeschool groep t leuven	Catholic University of Leuven
 industriele hogeschool hasselt	None
 industriele hogeschool te brussel	None
 industriele hogeschool van het rijk gent	None
@@ -308,7 +308,7 @@ institute syntra ghent belgium	None
 intec brussel	Free University of Brussels
 intec brussels	Free University of Brussels
 intecbrussel	Free University of Brussels
-international school of brussels	None
+international school of brussels	Free University of Brussels
 inventi sales academy antwerpen	None
 isalt brussel	Free University of Brussels
 isec high school brussels	None
@@ -347,7 +347,7 @@ karel de grote hogeschool katholieke hogeschool antwerpen	None
 karel de grote school antwerpen	None
 kask gent	None
 kath hogeschool groep t leuven	Catholic University of Leuven
-kath industriele hogeschool groept leuven	None
+kath industriele hogeschool groept leuven	Catholic University of Leuven
 katho associatie kuleuven	Catholic University of Leuven
 katho st lieven gent	None
 kathoieke universiteit leuven	Catholic University of Leuven
@@ -391,16 +391,16 @@ klu leuven	Catholic University of Leuven
 kms i s m erasmushogeschool brussel	None
 koninklijk atheneum hasselt	Catholic University of Leuven
 koninklijk atheneum redingenhof leuven	Catholic University of Leuven
-koninklijke academie gent	Catholic University of Leuven
+koninklijke academie gent	None
 kta gent	None
 kta i hasselt	None
 ku leuven	Catholic University of Leuven
 ku leuven afdeling gent	None
 ku leuven arenberg	None
-ku leuven belgium	None
+ku leuven belgium	Catholic University of Leuven
 ku leuven campus	Catholic University of Leuven
 ku leuven campus brugge	None
-ku leuven campus geel	None
+ku leuven campus geel	Catholic University of Leuven
 ku leuven campus groep t	Catholic University of Leuven
 ku leuven campus groept	Catholic University of Leuven
 ku leuven campus oostende	Catholic University of Leuven
@@ -477,7 +477,7 @@ orthodox theologisch instituut heilige johannes de theoloog gent	Catholic Univer
 paridaens instituut leuven	Catholic University of Leuven
 perspectief gent	None
 pestalozzi antwerpen	None
-phhi hasselt	None
+phhi hasselt	University of Hasselt
 phitc antwerpen	None
 phl hasselt	None
 phl hasselt volwassenonderwijs 1440 lestijden	None
@@ -491,16 +491,16 @@ piva antwerpen	None
 plantijn hogeschool van de provincie antwerpen	None
 plantijnhogeschool van de provincie antwerpen	None
 pnl leuven	None
-polytechnic school of brussels	Solvay Business School
+polytechnic school of brussels	None
 polytechnische school louvain la neuve	None
-pontificia universidad católica argentina santa maría de los buenos aires	Catholic University of Leuven
+pontificia universidad católica argentina santa maría de los buenos aires	None
 poznan university of technology polen gent universiteit belgie	None
 premed leuven	None
 provinciale handelsschool hasselt	None
 provincie antwerpen	None
 provincie antwerpen meistraat antwerpen	None
 pvco gent	None
-pvi antwerpen	None
+pvi antwerpen	University of Antwerp
 pxl hasselt	None
 r u gent	None
 rabot gent	None
@@ -542,11 +542,11 @@ sint lucas gent	None
 sint lucas hogeschool brussel	None
 sint lukas brussel	None
 sint lukas in brussel	None
-sint pietersinstituut gent	Catholic University of Leuven
+sint pietersinstituut gent	None
 siveho antwerpen	None
 sjb univ leuven	Free University of Brussels
 slac conservatorium leuven	None
-slba bkr antwerp business school	Solvay Business School
+slba bkr antwerp business school	None
 sociale hogeschool gent	None
 sociale promotie antwerpen	None
 solvay	Solvay Business School
@@ -595,7 +595,7 @@ thomas more ku leuven	Catholic University of Leuven
 thomas more mechelen 3j graduaat hasselt 1j thomas more mechelen voor bachelor	None
 thomas more mechelen antwerpen	None
 tihh hasselt	None
-tna antwerpen	Catholic University of Leuven
+tna antwerpen	None
 u gent	University of Ghent
 u hasselt	University of Hasselt
 ua hogeschool antwerpen	None
@@ -615,7 +615,7 @@ ugent	University of Ghent
 ugent omgezet	None
 uhasselt	University of Hasselt
 uhasselt diepenbeek	None
-uhasselt kuleuven	None
+uhasselt kuleuven	University of Hasselt
 uia antwerpen	University of Antwerp
 ukkel brussel leuven gent	None
 ulb vub	Free University of Brussels
@@ -661,12 +661,12 @@ university of antwerp ruca belgium	None
 university of antwerp ufsia	University of Antwerp
 university of brussels	Free University of Brussels
 university of ghent	University of Ghent
-university of ghent belgium	None
-university of ghent business engineering	None
+university of ghent belgium	University of Ghent
+university of ghent business engineering	University of Ghent
 university of leuven	None
 university of leuven kul	Catholic University of Leuven
 university of liège louvain school of management solvay entrepreneurs	None
-university of louvain ucl belgium	None
+university of louvain ucl belgium	Catholic University of Leuven
 university saint louis brussels	None
 université catholique de louvain	Catholic University of Leuven
 université catholique de louvain la neuve	Catholic University of Leuven
@@ -677,7 +677,7 @@ vdab antwerpen	None
 veiligheidsinstitutuut antwerpen	Catholic University of Leuven
 verick management school leuven gent	Vlerick Business School
 vizo centrum hasselt	None
-vizo hasselt	University of Hasselt
+vizo hasselt	None
 vlaamse universiteit brussel vub	Free University of Brussels
 vlekho brussel	Solvay Business School
 vlekho business school brussel	Solvay Business School
@@ -694,7 +694,7 @@ vrije universiteit brussel	Free University of Brussels
 vti leuven	None
 vts technicum antwerp	None
 vts technicum antwerpen	None
-vts technicum londestraat antwerpen	Catholic University of Leuven
+vts technicum londestraat antwerpen	None
 vtst antwerpen	None
 vub	Free University of Brussels
 vub brussel	Free University of Brussels
