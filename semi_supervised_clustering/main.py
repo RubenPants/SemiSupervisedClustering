@@ -167,7 +167,7 @@ class EmbeddingModel:
             batch_size: int = 1024,
             n_neg: int = 32 * 1024,
             n_pos: int = 32 * 1024,
-            n_replaces: int = 10,
+            max_replaces: int = 10,
             epochs: int = 5,
             iterations: int = 8,
             n_val_cluster: int = 10,
@@ -186,7 +186,7 @@ class EmbeddingModel:
         :param batch_size: Batch-size used during training
         :param n_neg: Number of negative samples sampled each iteration at most
         :param n_pos: Number of positive samples sampled each iteration at most
-        :param n_replaces: Number of replaces used per sample during positive/negative sampling
+        :param max_replaces: Maximum number of replaces used during positive sampling (safety measure)
         :param epochs: Number of training/validation epochs (last epoch is not validated)
         :param iterations: Number of iterations between validations
         :param n_val_cluster: Number of samples validated that are close to a cluster-boundary
@@ -216,7 +216,7 @@ class EmbeddingModel:
                             n_neg=n_neg,
                             n_pos=n_pos,
                             batch_size=batch_size,
-                            n_replaces=n_replaces,
+                            max_replaces=max_replaces,
                     )
                     loss.append(a)
                     loss_split.append(b)
@@ -302,7 +302,7 @@ class EmbeddingModel:
             embeddings: np.ndarray,
             iterations: int = 8,
             batch_size: int = 1024,
-            n_replaces: int = 10,
+            max_replaces: int = 10,
     ) -> List[float]:
         """
         Initialise the embedding-model using pre-existing sentence embeddings.
@@ -311,14 +311,14 @@ class EmbeddingModel:
         :param embeddings: Pre-existing sentence embedding corresponding the sentence data
         :param iterations: Number of iterations between validations
         :param batch_size: Batch-size used during training
-        :param n_replaces: Number of times the same data-sample is sampled during training
+        :param max_replaces: Maximum number of times the same data-sample is replaced during sampling
         :return: Final training loss
         """
         assert len(data) == len(embeddings)
         
         # Initialise fitting of provided embeddings
-        data = [self.clean_f(d) for d in data] * n_replaces
-        y = np.vstack([embeddings, ] * n_replaces)
+        data = [self.clean_f(d) for d in data] * max_replaces
+        y = np.vstack([embeddings, ] * max_replaces)
         loss = []
         
         # Fit pre-trained embeddings on provided data
@@ -439,7 +439,7 @@ class EmbeddingModel:
             n_neg: int,
             n_pos: int,
             batch_size: int = 1024,
-            n_replaces: int = 10,
+            max_replaces: int = 10,
     ) -> Tuple[float, Tuple[float, float]]:
         """Perform a single push-pull training."""
         # Negative sampling
@@ -447,7 +447,6 @@ class EmbeddingModel:
                 n=n_neg,
                 items=data,
                 embeddings=self.embed(data),
-                n_replaces=n_replaces,
         ))
         x = self.encoder.encode_batch(x, sample=True)
         y = np.vstack(y)
@@ -458,7 +457,7 @@ class EmbeddingModel:
                 n=n_pos,
                 items=data,
                 embeddings=self.embed(data),
-                n_replaces=n_replaces,
+                max_replaces=max_replaces,
         ))
         x = self.encoder.encode_batch(x, sample=True)
         y = np.vstack(y)

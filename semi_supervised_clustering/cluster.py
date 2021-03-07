@@ -172,7 +172,7 @@ class Clusterer:
     
     def get_cluster_count(self) -> int:
         """Count the number of clusters."""
-        return len({v for v in self._clusters.values() if v})
+        return len(self.get_all_cluster_ids())
     
     def get_centroids(
             self,
@@ -203,7 +203,7 @@ class Clusterer:
             n: int,
             items: List[str],
             embeddings: np.ndarray,
-            n_replaces: int = 10,
+            max_replaces: int = 10,
     ) -> List[Tuple[str, np.ndarray]]:
         """
         Sample unsupervised any two different items at random, the second item is used as a repulsion-vector.
@@ -211,13 +211,13 @@ class Clusterer:
         :param n: Number of samples (upper limit, see n_replaces)
         :param items: Input-items to select from (assumed to be cleaned)
         :param embeddings: Embeddings used as repulsion-vectors
-        :param n_replaces: Number of times an item can be replaced during sampling
+        :param max_replaces: Maximum number of times an item can be replaced during sampling
         :return: List of samples together with a random repulsion vector
         """
         self._centroids = {}  # Reset centroids when model gets trained
         
         # Create sampling list
-        all_items = list(set(items)) * n_replaces
+        all_items = list(set(items)) * max_replaces
         shuffle(all_items)
         
         def get_other_item(item: str) -> np.ndarray:
@@ -238,15 +238,15 @@ class Clusterer:
             n: int,
             items: List[str],
             embeddings: np.ndarray,
-            n_replaces: int = 10,
+            max_replaces: int = 10,
     ) -> List[Tuple[str, np.ndarray]]:
         """
         Sample positive items from the clusters with their centroid as target-vector.
 
-        :param n: Number of samples (upper limit, see n_replaces)
+        :param n: Number of samples (upper limit, see max_replaces)
         :param items: Input-items to select from (assumed to be cleaned)
         :param embeddings: Embeddings used to determine the centroids
-        :param n_replaces: Number of times an item can be replaced during sampling
+        :param max_replaces: Maximum number of times an item can be replaced during sampling
         :return: List of samples together with their corresponding cluster-centroid-embeddings
         """
         assert self._clusters
@@ -258,7 +258,7 @@ class Clusterer:
         # Get all clusters containing more than one item (otherwise embedding is centroid)
         count = Counter(self._clusters.values())
         known_items_plural = [k for k, v in self._clusters.items() if v and count[v] > 1]
-        known_items_plural *= n_replaces
+        known_items_plural *= max_replaces
         
         # Sample with (limited) replacement, unweighted sampling
         result = []
@@ -271,17 +271,16 @@ class Clusterer:
             n: int,
             items: List[str],
             embeddings: np.ndarray,
-            n_replaces: int = 5,
     ) -> List[Tuple[str, np.ndarray]]:
         """
         Sample negative items from the clusters together with a repulsion-vector.
 
-        Sample any two items that are not in the same approximated cluster.
+        Sample any two items that are not in the same approximated cluster. To balance inter-cluster repulsion, an equal
+        amount of samples is drawn from every cluster.
 
-        :param n: Number of samples (upper limit, see n_replaces)
+        :param n: Number of samples
         :param items: Input-items to select from (assumed to be cleaned)
         :param embeddings: Embeddings used to determine the centroids
-        :param n_replaces: Number of times an item can be replaced during sampling
         :return: List of samples together with their corresponding (repulsion) vector
         """
         assert self._clusters
@@ -290,9 +289,20 @@ class Clusterer:
         # Update the cluster-centroids using the provided embeddings
         centroids = self.get_centroids(items=items, embeddings=embeddings)
         
-        # Enlist all sampling options
-        known_items = list(set(self._clusters.keys()) & set(items))
-        known_items *= n_replaces
+        # sample items from None-clusters, keep None-ratio
+        value_count = Counter(self._clusters.values())
+        none_keys = [k for k, v in self._clusters.items() if not v]
+        none_ratio = value_count[None] / sum(value_count.values())
+        samples_uncluster = np.random.choice(none_keys, size=round(n * none_ratio)).tolist()
+        
+        # Fill remaining places with items from known clusters, sample equally across clusters
+        cluster_ratio = 1 - none_ratio
+        samples_per_cluster = max(1, round((n * cluster_ratio) / self.get_cluster_count()))
+        samples_cluster = []
+        for c_id in self.get_all_cluster_ids():
+            samples_cluster += np.random.choice(self.get_cluster_by_id(c_id), size=samples_per_cluster).tolist()
+        
+        # Get embeddings of None-cluster's values in advance
         none_keys = {k for k, v in self._clusters.items() if not v}
         none_embeddings = {item: emb for item, emb in zip(items, embeddings) if item in none_keys}
         
@@ -308,7 +318,7 @@ class Clusterer:
         
         # Sample with (limited) replacement, unweighted sampling
         result = []
-        for sample in np.random.choice(known_items, size=min(n, len(known_items)), replace=False):
+        for sample in samples_uncluster + samples_cluster:
             result.append((sample, get_repulsion_vector(sample)))
         return result
     

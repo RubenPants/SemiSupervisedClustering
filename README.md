@@ -115,9 +115,13 @@ This section gives a little more details into the working of the model. There ar
 
 ### 3.5. TensorBoard Projector
 
-To help analyse the created clusters, a *TensorBoard Projector* method exists within the `EmbeddingModel`. The results of the embeddings created in the [demos](https://github.com/RubenPants/SemiSupervisedClustering/blob/master/demos) are displayed by the following figures.
+To help analyse the created clusters, a *TensorBoard Projector* method exists within the `EmbeddingModel`.
 
 ![Projector: KU Leuven cluster](img/projector_kul.png)
 
-![Projector: UGent and VUB clusters](img/projector_ugent_vub.png)
+ The results of the embeddings created in the [demos](https://github.com/RubenPants/SemiSupervisedClustering/blob/master/demos) are displayed by the following figures. Note that the unclustered samples are removed from the images.
+
+![Projector: UGent and VUB clusters](img/projector_antwerp_ghent.png)
+
+![Projector: UGent and VUB clusters](img/projector_vlerick_solvay.png)
 
