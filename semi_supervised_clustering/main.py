@@ -101,7 +101,9 @@ class EmbeddingModel:
     def initialise_models(
             self,
             data: List[str],
-            reset: bool = False,
+            reset_encoder: bool = False,
+            reset_embedder: bool = False,
+            reset_clusterer: bool = False,
             n_min_clusters: int = 5,
             show_overview: bool = False,
     ) -> None:
@@ -109,20 +111,22 @@ class EmbeddingModel:
         Initialise the models and annotate some clusters in order to start the training process.
         
         :param data: Data to initialise the models with
-        :param reset: Reset previously progress made, cannot be undone
+        :param reset_encoder: Reset previously progress made on the encoder, cannot be undone
+        :param reset_embedder: Reset previously progress made on the embedder, cannot be undone
+        :param reset_clusterer: Reset previously progress made on the clusters, cannot be undone
         :param n_min_clusters: Minimum of clusters to initialise
         :param show_overview: Show an overview for each of the model's components after initialisation
         """
         # Initialise the encoder
-        if not self.encoder.is_created() or reset:
+        if not self.encoder.is_created() or reset_encoder:
             self.encoder.create_encoder(data=data, show_overview=show_overview)
         
         # Reset the embedder, if requested
-        if reset:
+        if reset_embedder:
             self.embedder.create_model(show_overview=show_overview)
         
         # Reset the clusterer, if requested
-        if reset:
+        if reset_clusterer:
             self.clusterer.reset()
         if show_overview:
             self.clusterer.show_overview()
@@ -240,7 +244,7 @@ class EmbeddingModel:
                 print(f" - Unclustered: {get_percentage(counter[None], sum(counter.values()))}")
                 print(f" - Largest cluster: {max(v for k, v in counter.items() if k)}")
                 print(f" - Average cluster: {sum(v for k, v in counter.items() if k) / len(counter)}")
-                print(f" - Largest cluster: {min(v for k, v in counter.items() if k)}")
+                print(f" - Smallest cluster: {min(v for k, v in counter.items() if k)}")
                 
                 # Show validation overview
                 self.validate()
