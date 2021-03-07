@@ -447,6 +447,7 @@ class EmbeddingModel:
                 n=n_neg,
                 items=data,
                 embeddings=self.embed(data),
+                max_replaces=max_replaces,
         ))
         x = self.encoder.encode_batch(x, sample=True)
         y = np.vstack(y)
