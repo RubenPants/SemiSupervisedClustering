@@ -271,6 +271,7 @@ class Clusterer:
             n: int,
             items: List[str],
             embeddings: np.ndarray,
+            max_none_ratio: float = 1 / 4,
     ) -> List[Tuple[str, np.ndarray]]:
         """
         Sample negative items from the clusters together with a repulsion-vector.
@@ -281,6 +282,7 @@ class Clusterer:
         :param n: Number of samples
         :param items: Input-items to select from (assumed to be cleaned)
         :param embeddings: Embeddings used to determine the centroids
+        :param max_none_ratio: Maximum ratio of Garbage-samples (belong to None-cluster) sampled
         :return: List of samples together with their corresponding (repulsion) vector
         """
         assert self._clusters
@@ -292,7 +294,7 @@ class Clusterer:
         # sample items from None-clusters, keep None-ratio
         value_count = Counter(self._clusters.values())
         none_keys = [k for k, v in self._clusters.items() if not v]
-        none_ratio = value_count[None] / sum(value_count.values())
+        none_ratio = min(max_none_ratio, value_count[None] / sum(value_count.values()))
         samples_uncluster = np.random.choice(none_keys, size=round(n * none_ratio)).tolist()
         
         # Fill remaining places with items from known clusters, sample equally across clusters
