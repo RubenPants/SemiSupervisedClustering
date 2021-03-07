@@ -67,7 +67,7 @@ class Encoder:
     ) -> None:
         """Create an encoder best suited for the provided data."""
         # Clean data first
-        data = [self.clean_f(d) for d in data]
+        data = [self.clean_f(d) for d in data if self.clean_f(d)]
         
         # Write data to file
         temp_path = Path.cwd() / f'{getrandbits(128)}.txt'

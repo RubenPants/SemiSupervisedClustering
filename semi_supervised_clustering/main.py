@@ -113,9 +113,6 @@ class EmbeddingModel:
         :param n_min_clusters: Minimum of clusters to initialise
         :param show_overview: Show an overview for each of the model's components after initialisation
         """
-        # Clean the data in advance
-        data = [self.clean_f(d) for d in data]
-        
         # Initialise the encoder
         if not self.encoder.is_created() or reset:
             self.encoder.create_encoder(data=data, show_overview=show_overview)
@@ -131,12 +128,13 @@ class EmbeddingModel:
             self.clusterer.show_overview()
         
         if self.clusterer.get_cluster_count() < n_min_clusters:
+            data_clean, data_count = self._transform_data(data=data)
+            
             # Update embeddings using random negative sampling
-            items, counts = zip(*Counter(data).items())
             x, y = zip(*self.clusterer.sample_unsupervised(
                     n=1024 * 8,
-                    items=items,
-                    embeddings=self.embedder(self.encoder(items)),
+                    items=data_clean,
+                    embeddings=self.embedder(self.encoder(data_clean)),
             ))
             x = self.encoder.encode_batch(x, sample=True)
             y = np.vstack(y)
@@ -147,9 +145,9 @@ class EmbeddingModel:
             while self.clusterer.get_cluster_count() < n_min_clusters or updated:
                 score, proposal = self.clusterer.discover_new_cluster(
                         n=1,
-                        items=items,
-                        embeddings=self.embedder(self.encoder(items)),
-                        weights=[log(c) for c in counts],
+                        items=data_clean,
+                        embeddings=self.embedder(self.encoder(data_clean)),
+                        weights=[log(c) for c in data_count],
                 )[0]
                 n_before = self.clusterer.get_cluster_count()
                 self.clusterer.validate_cli(
@@ -383,7 +381,11 @@ class EmbeddingModel:
     ) -> Tuple[List[str], List[int]]:
         """Transform the data by cleaning, counting and adding missing cluster data."""
         # Clean and count provided data
-        data_clean, data_count = zip(*sorted(Counter([self.clean_f(d) for d in data]).items(), key=lambda x: x[1]))
+        temp = []
+        for d in data:
+            c = self.clean_f(d)
+            if c: temp.append(c)
+        data_clean, data_count = zip(*sorted(Counter(temp).items(), key=lambda x: x[1]))
         data_clean = list(data_clean)
         data_count = list(data_count)
         

@@ -461,9 +461,13 @@ class Clusterer:
         scores = []
         sorted_idx = similarity.argsort(axis=1)  # Get sorted indices (sort on corresponding values)
         for i, (item, weight) in enumerate(zip(items, weights)):
-            top_indices = sorted_idx[i, -k_neighbours:]
+            # No point in calculating score if weight equals zero
+            if not weight:
+                scores.append(0)
+                continue
             
             # Assign score of zero if labeled entity is in K nearest neighbours
+            top_indices = sorted_idx[i, -k_neighbours:]
             if any(items[idx] in self._clusters.keys() for idx in top_indices):
                 scores.append(0)
             
