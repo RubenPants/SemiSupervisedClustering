@@ -164,10 +164,10 @@ class EmbeddingModel:
     def train(
             self,
             data: List[str],
-            batch_size: int = 512,
-            n_neg: int = 32 * 512,
-            n_pos: int = 32 * 512,
-            n_replaces: int = 20,
+            batch_size: int = 1024,
+            n_neg: int = 32 * 1024,
+            n_pos: int = 32 * 1024,
+            n_replaces: int = 10,
             epochs: int = 5,
             iterations: int = 8,
             n_val_cluster: int = 10,
@@ -301,8 +301,8 @@ class EmbeddingModel:
             data: List[str],
             embeddings: np.ndarray,
             iterations: int = 8,
-            batch_size: int = 512,
-            n_replaces: int = 20,
+            batch_size: int = 1024,
+            n_replaces: int = 10,
     ) -> List[float]:
         """
         Initialise the embedding-model using pre-existing sentence embeddings.
@@ -341,12 +341,14 @@ class EmbeddingModel:
             self,
             data: List[str],
             path_projector: Path,
+            incl_none: bool = True,
     ) -> None:
         """
         Visualise the resulting embeddings and clusters using TensorBoard.
         
         :param data: Data to embed and visualise
         :param path_projector: Path where projector-assets are stored
+        :param incl_none: Include the samples that do not belong to a cluster
         """
         write_path = path_projector / f'{self.name}'
         write_path.mkdir(exist_ok=True, parents=True)
@@ -354,6 +356,20 @@ class EmbeddingModel:
         # Get data embeddings and predict all the clusters
         embeddings = self.embed(data)
         representatives = self(data)
+        
+        # Filter out None-representatives if requested
+        if not incl_none:
+            data_f = []
+            embeddings_f = []
+            representatives_f = []
+            for d, e, r in zip(data, embeddings, representatives):
+                if r:  # Only add if representative not None
+                    data_f.append(d)
+                    embeddings_f.append(e)
+                    representatives_f.append(r)
+            data = data_f
+            embeddings = embeddings_f
+            representatives = representatives_f
         
         # Save Labels separately on a line-by-line manner.
         with open(write_path / f'metadata.tsv', "w") as f:
@@ -422,8 +438,8 @@ class EmbeddingModel:
             data: List[str],
             n_neg: int,
             n_pos: int,
-            batch_size: int = 512,
-            n_replaces: int = 20,
+            batch_size: int = 1024,
+            n_replaces: int = 10,
     ) -> Tuple[float, Tuple[float, float]]:
         """Perform a single push-pull training."""
         # Negative sampling

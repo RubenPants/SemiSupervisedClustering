@@ -104,7 +104,7 @@ class Embedder:
             self,
             x: np.ndarray,
             y: np.ndarray,
-            batch_size: int = 512,
+            batch_size: int = 1024,
     ) -> float:
         """Train a positive-sampling sequence for the model and return the corresponding loss."""
         self._model.compile(optimizer='adam', loss=self._positive_loss)
@@ -114,7 +114,7 @@ class Embedder:
             self,
             x: np.ndarray,
             y: np.ndarray,
-            batch_size: int = 512,
+            batch_size: int = 1024,
     ) -> float:
         """Train a negative-sampling sequence for the model and return the corresponding loss."""
         self._model.compile(optimizer='adam', loss=self._negative_loss)
