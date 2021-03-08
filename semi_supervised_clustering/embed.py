@@ -27,6 +27,7 @@ class Embedder:
         :param normalise: Whether or not to normalise the model's outputs
         """
         assert len(layers) >= 1
+        self.dim = layers[-1]
         self._name = name
         self._input_size = input_size
         self._layers = layers

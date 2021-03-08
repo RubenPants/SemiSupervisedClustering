@@ -92,10 +92,12 @@ class EmbeddingModel:
     
     def __call__(self, sentences: List[str]) -> List[Optional[str]]:
         """Define the best-suiting clusters for the provided sentences."""
+        if not sentences: return sentences  # To prevent breaks
         return self.clusterer(self.embed(sentences))
     
     def embed(self, sentences: List[str]) -> np.ndarray:
         """Embed the list of sentences."""
+        if not sentences: return np.zeros((0, self.embedder.dim))  # To prevent breaks
         return self.embedder(self.encoder([self.clean_f(s) for s in sentences]))
     
     def initialise_models(
