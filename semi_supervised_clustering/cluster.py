@@ -181,9 +181,10 @@ class Clusterer:
     ) -> Dict[str, np.ndarray]:
         """Create cluster-centroids and update centroid cache."""
         centroids = {}
-        cluster_ids = set(self._clusters.values()) - {None, }
-        for c_id in cluster_ids:
-            indices = [i for i, x in enumerate(items) if x in self._clusters and self._clusters[x] == c_id]
+        relevant_items = [(idx, item) for idx, item in enumerate(items) if item in self._clusters.keys()]
+        for c_id in self.get_all_cluster_ids():
+            indices = [i for i, x in relevant_items if self._clusters[x] == c_id]
+            assert indices != []
             centroids[c_id] = np.take(embeddings, indices, axis=0).mean(0)
         return centroids
     
