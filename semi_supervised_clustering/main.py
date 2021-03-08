@@ -90,10 +90,22 @@ class EmbeddingModel:
         """Representation of the model."""
         return f"EmbeddingModel"
     
-    def __call__(self, sentences: List[str]) -> List[Optional[str]]:
-        """Define the best-suiting clusters for the provided sentences."""
+    def __call__(self, sentences: List[str], use_labeled: bool = True) -> List[Optional[str]]:
+        """
+        Define the best-suiting clusters for the provided sentences.
+        
+        :param sentences: The sentences to cluster
+        :param use_labeled: If sentence comes literally from previously labeled sample then look up it's cluster ID
+        :return: Cluster ID corresponding each of the sentences, None if no matching cluster
+        """
         if not sentences: return sentences  # To prevent breaks
-        return self.clusterer(self.embed(sentences))
+        predictions = self.clusterer(self.embed(sentences))
+        if use_labeled:
+            labeled = self.clusterer.get_all_labels()
+            sentences = [self.clean_f(s) for s in sentences]
+            return [labeled[s] if s in labeled else p for s, p in zip(sentences, predictions)]
+        else:
+            return predictions
     
     def embed(self, sentences: List[str]) -> np.ndarray:
         """Embed the list of sentences."""
@@ -261,7 +273,7 @@ class EmbeddingModel:
             
             # Calculate ratio of samples in cluster
             if show_overview:
-                predicted = self(data_clean)
+                predicted = self(data_clean, use_labeled=False)  # No cheating
                 counter = Counter(predicted)
                 print(f"\nTraining-clustering overview:")
                 print(f" - Unclustered: {get_percentage(counter[None], sum(counter.values()))}")
@@ -306,7 +318,7 @@ class EmbeddingModel:
         if not val_data:
             return []
         x, y = zip(*val_data)
-        predicted_clusters = self(x)
+        predicted_clusters = self(x, use_labeled=False)  # No cheating
         
         # Print the result if requested
         if print_result:
@@ -369,6 +381,7 @@ class EmbeddingModel:
             data: List[str],
             path_projector: Path,
             incl_none: bool = True,
+            use_labeled: bool = True,
     ) -> None:
         """
         Visualise the resulting embeddings and clusters using TensorBoard.
@@ -376,13 +389,14 @@ class EmbeddingModel:
         :param data: Data to embed and visualise
         :param path_projector: Path where projector-assets are stored
         :param incl_none: Include the samples that do not belong to a cluster
+        :param use_labeled: If sentence comes literally from previously labeled sample then look up it's cluster ID
         """
         write_path = path_projector / f'{self.name}'
         write_path.mkdir(exist_ok=True, parents=True)
         
         # Get data embeddings and predict all the clusters
         embeddings = self.embed(data)
-        representatives = self(data)
+        representatives = self(data, use_labeled=use_labeled)
         
         # Filter out None-representatives if requested
         if not incl_none:

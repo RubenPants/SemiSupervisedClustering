@@ -155,6 +155,10 @@ class Clusterer:
             result[c_id] = self.get_cluster_by_id(c_id)
         return result
     
+    def get_all_labels(self) -> Dict[str, str]:
+        """Get all the labeled data."""
+        return {**self._clusters, **self._clusters_val}
+    
     def get_cluster_id(
             self,
             item: str,
