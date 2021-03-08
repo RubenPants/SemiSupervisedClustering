@@ -19,7 +19,7 @@ INSTALL_REQUIRES = [
 # noinspection SpellCheckingInspection
 setup(
         name="semi_supervised_clustering",
-        version="0.4.3",
+        version="0.4.4",
         description="Cluster context-less language data in a semi-supervised manner.",
         long_description=README,
         long_description_content_type="text/markdown",
