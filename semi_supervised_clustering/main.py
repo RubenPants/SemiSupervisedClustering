@@ -90,7 +90,11 @@ class EmbeddingModel:
         """Representation of the model."""
         return f"EmbeddingModel"
     
-    def __call__(self, sentences: List[str], use_labeled: bool = True) -> List[Optional[str]]:
+    def __call__(
+            self,
+                 sentences: List[str],
+            use_labeled: bool = True,
+    ) -> List[Optional[str]]:
         """
         Define the best-suiting clusters for the provided sentences.
         
@@ -98,7 +102,7 @@ class EmbeddingModel:
         :param use_labeled: If sentence comes literally from previously labeled sample then look up it's cluster ID
         :return: Cluster ID corresponding each of the sentences, None if no matching cluster
         """
-        if not sentences: return sentences  # To prevent breaks
+        if not sentences: return []  # To prevent broken predictions
         predictions = self.clusterer(self.embed(sentences))
         if use_labeled:
             labeled = self.clusterer.get_all_labels()
@@ -111,6 +115,16 @@ class EmbeddingModel:
         """Embed the list of sentences."""
         if not sentences: return np.zeros((0, self.embedder.dim))  # To prevent breaks
         return self.embedder(self.encoder([self.clean_f(s) for s in sentences]))
+    
+    def get_cluster_prob(self, sentences: List[str]) -> List[Tuple[str, float]]:
+        """Cluster without a probability threshold and return closest cluster ID together with cosine similarity."""
+        if not sentences: return []  # To prevent broken predictions
+        return self.clusterer.cluster_prob(self.embed(sentences))
+    
+    def get_all_cluster_prob(self, sentences: List[str]) -> Tuple[List[str], np.ndarray]:
+        """Get softmax probabilities for all clusters."""
+        if not sentences: return [], np.zeros((0, self.embedder.dim))  # To prevent broken predictions
+        return self.clusterer.all_clusters_prob(self.embed(sentences))
     
     def initialise_models(
             self,

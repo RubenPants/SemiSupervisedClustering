@@ -6,6 +6,7 @@ from random import choice, shuffle
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
 import numpy as np
+from scipy.special import softmax
 from sklearn.metrics.pairwise import cosine_similarity
 
 
@@ -52,10 +53,7 @@ class Clusterer:
         """Cluster representation."""
         return str(self)
     
-    def __call__(
-            self,
-            embeddings: np.ndarray,
-    ) -> List[Optional[str]]:
+    def __call__(self, embeddings: np.ndarray) -> List[Optional[str]]:
         """Get the best-suiting clusters for the given embeddings, or None if no such cluster exists."""
         assert self._centroids  # Centroids must be set in advance
         
@@ -72,10 +70,36 @@ class Clusterer:
             results.append(cluster_ids[idx] if similarity[i, idx] >= self._sim_thr else None)
         return results
     
-    def add_clusters(
-            self,
-            known_clusters: Dict[str, List[str]],
-    ) -> None:
+    def cluster_prob(self, embeddings: np.ndarray) -> List[Tuple[str, float]]:
+        """Get the best-suiting clusters together with cosine-similarity for the given embeddings."""
+        assert self._centroids  # Centroids must be set in advance
+        
+        # Setup known database
+        cluster_ids, cluster_embs = zip(*self._centroids.items())
+        cluster_embs = np.vstack(cluster_embs)
+        
+        # Calculate similarity with cluster centroids
+        similarity = cosine_similarity(embeddings, cluster_embs)
+        
+        # Fetch the best-matching clusters
+        results = []
+        for i, idx in enumerate(similarity.argmax(axis=1)):
+            results.append((cluster_ids[idx], similarity[i, idx]))
+        return results
+    
+    def all_clusters_prob(self, embeddings: np.ndarray) -> Tuple[List[str], np.ndarray]:
+        """Get the softmax probabilities to all possible clusters."""
+        assert self._centroids  # Centroids must be set in advance
+        
+        # Setup known database
+        cluster_ids, cluster_embs = zip(*sorted(self._centroids.items(), key=lambda x: x[0] if x[0] else ''))
+        cluster_embs = np.vstack(cluster_embs)
+        
+        # Calculate similarity with cluster centroids
+        similarity = cosine_similarity(embeddings, cluster_embs)
+        return cluster_ids, softmax(similarity, axis=1)
+    
+    def add_clusters(self, known_clusters: Dict[str, List[str]]) -> None:
         """Add known clusters to the data, cluster-IDs that are None are considered cluster-less noise."""
         # Validate and add inputs
         for c_id, cluster in known_clusters.items():
@@ -99,11 +123,7 @@ class Clusterer:
                 self._clusters[self.clean_f(c)] = c_id
         self.store()
     
-    def add_to_cluster(
-            self,
-            item: str,
-            c_id: Optional[str],
-    ) -> None:
+    def add_to_cluster(self, item: str, c_id: Optional[str]) -> None:
         """Add the given item to the requested cluster."""
         if item in self._clusters.keys():  # Check if conflicting add
             assert self._clusters[item] == c_id
@@ -111,10 +131,7 @@ class Clusterer:
         self._clusters[item] = c_id
         self.store()
     
-    def add_validation(
-            self,
-            val_clusters: Dict[str, List[str]],
-    ) -> None:
+    def add_validation(self, val_clusters: Dict[str, List[str]]) -> None:
         """Add data to the validation-set."""
         # Validate and add inputs
         for c_id, cluster in val_clusters.items():
@@ -159,18 +176,12 @@ class Clusterer:
         """Get all the labeled data."""
         return {**self._clusters, **self._clusters_val}
     
-    def get_cluster_id(
-            self,
-            item: str,
-    ) -> str:
+    def get_cluster_id(self, item: str) -> str:
         """Get the cluster-ID of the given item."""
         assert item in self._clusters.keys()
         return self._clusters[item]
     
-    def get_cluster_by_id(
-            self,
-            c_id: str,
-    ) -> List[str]:
+    def get_cluster_by_id(self, c_id: str) -> List[str]:
         """Get all items from the cluster as specified by its ID."""
         return [k for k, v in self._clusters.items() if v == c_id]
     
@@ -178,11 +189,7 @@ class Clusterer:
         """Count the number of clusters."""
         return len(self.get_all_cluster_ids())
     
-    def get_centroids(
-            self,
-            items: List[str],
-            embeddings: np.ndarray,
-    ) -> Dict[str, np.ndarray]:
+    def get_centroids(self, items: List[str], embeddings: np.ndarray) -> Dict[str, np.ndarray]:
         """Create cluster-centroids and update centroid cache."""
         centroids = {}
         relevant_items = [(idx, item) for idx, item in enumerate(items) if item in self._clusters.keys()]
@@ -192,11 +199,7 @@ class Clusterer:
             centroids[c_id] = np.take(embeddings, indices, axis=0).mean(0)
         return centroids
     
-    def set_centroids(
-            self,
-            items: List[str],
-            embeddings: np.ndarray,
-    ) -> None:
+    def set_centroids(self, items: List[str], embeddings: np.ndarray) -> None:
         """Set and store the final list of centroids, suited to the provided data."""
         self._centroids = self.get_centroids(
                 items=items,
@@ -559,7 +562,7 @@ class Clusterer:
          - Ignore:i ignore if uncertain about which action to take best
          - Other:<other> to add to other/new cluster
         """
-        print(f"\nAdd to cluster?{f' (sim: {round(sim, 3)})' if sim else ''}")
+        print(f"\nAdd to cluster?{f' (sim: {round(sim, 3):.3f})' if sim else ''}")
         print(f" -    Item: '{item}'")
         if proposed_cluster:
             print(f" - Cluster: '{proposed_cluster}'")
@@ -625,7 +628,10 @@ class Clusterer:
             with open(self._path_data / f"{self}-val", 'r') as file:
                 self._clusters_val = json.load(file)
     
-    def _transform_sim(self, x: float) -> float:
+    def _transform_sim(
+            self,
+            x: float,
+    ) -> float:
         """
         Transform the similarity-score x to be maximal when close to the threshold, and lower else.
         
