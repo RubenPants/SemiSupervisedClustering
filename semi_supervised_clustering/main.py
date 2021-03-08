@@ -138,7 +138,7 @@ class EmbeddingModel:
             x, y = zip(*self.clusterer.sample_unsupervised(
                     n=1024 * 8,
                     items=data_clean,
-                    embeddings=self.embedder(self.encoder(data_clean)),
+                    embeddings=self.embed(data_clean),
             ))
             x = self.encoder.encode_batch(x, sample=True)
             y = np.vstack(y)
@@ -146,7 +146,7 @@ class EmbeddingModel:
             
             # Create initial clusters
             updated = True
-            embeddings = self.embedder(self.encoder(data_clean))
+            embeddings = self.embed(data_clean)
             weights = [log(c) for c in data_count]
             while self.clusterer.get_cluster_count() < n_min_clusters or updated:
                 score, proposal = self.clusterer.discover_new_cluster(
@@ -173,6 +173,7 @@ class EmbeddingModel:
             n_pos: int = 32 * 1024,
             max_replaces: int = 10,
             epochs: int = 5,
+            warmup: int = 8,
             iterations: int = 8,
             n_val_cluster: int = 10,
             n_val_discover: int = 2,
@@ -192,6 +193,7 @@ class EmbeddingModel:
         :param n_pos: Number of positive samples sampled each iteration at most
         :param max_replaces: Maximum number of replaces used during positive sampling (safety measure)
         :param epochs: Number of training/validation epochs (last epoch is not validated)
+        :param warmup: Number of iterations to warmup the embeddings (run before validation-iterations)
         :param iterations: Number of iterations between validations
         :param n_val_cluster: Number of samples validated that are close to a cluster-boundary
         :param n_val_discover: Number of potential new clusters discovered during validation
@@ -206,6 +208,25 @@ class EmbeddingModel:
         # Initialise training
         data_clean, data_count = self._transform_data(data=data)
         loss, loss_split = [], []
+        
+        # Warmup the embeddings
+        if warmup:
+            pbar = tqdm(total=warmup, desc="Warmup, loss ???")
+            try:
+                for i in range(warmup):
+                    a, b = self._train_push_pull(
+                            data=data_clean,
+                            n_neg=n_neg,
+                            n_pos=n_pos,
+                            batch_size=batch_size,
+                            max_replaces=max_replaces,
+                    )
+                    loss.append(a)
+                    loss_split.append(b)
+                    pbar.set_description(f"Warmup, loss {round(loss[-1], 5)}")
+                    pbar.update()
+            finally:
+                pbar.close()
         
         # Train the model
         for epoch in range(1, epochs + 1):
