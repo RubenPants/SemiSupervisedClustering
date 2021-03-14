@@ -3,7 +3,7 @@ Cluster context-less embedded language data in a semi-supervised manner.
 
 
 
-## 1. Installation and Usage
+## 1. Installation
 
 ```
 pip install git+https://github.com/RubenPants/SemiSupervisedClustering.git
