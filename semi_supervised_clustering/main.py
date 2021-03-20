@@ -54,6 +54,7 @@ class EmbeddingModel:
         self.path_model.mkdir(exist_ok=True, parents=True)
         self.path_data = path_data
         self.path_data.mkdir(exist_ok=True, parents=True)
+        self._thr = cluster_thr
         
         # Load in the encoder
         self.encoder = Encoder(
@@ -92,7 +93,7 @@ class EmbeddingModel:
     
     def __call__(
             self,
-                 sentences: List[str],
+            sentences: List[str],
             use_labeled: bool = True,
     ) -> List[Optional[str]]:
         """
@@ -125,6 +126,10 @@ class EmbeddingModel:
         """Get softmax probabilities for all clusters."""
         if not sentences: return [], np.zeros((0, self.embedder.dim))  # To prevent broken predictions
         return self.clusterer.all_clusters_prob(self.embed(sentences))
+    
+    def get_thr(self) -> float:
+        """Get the clustering threshold."""
+        return self._thr
     
     def initialise_models(
             self,
