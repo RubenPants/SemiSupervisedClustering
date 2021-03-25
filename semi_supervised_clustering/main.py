@@ -224,7 +224,7 @@ class EmbeddingModel:
         :param batch_size: Batch-size used during training
         :param n_neg: Number of negative samples sampled each iteration at most
         :param n_pos: Number of positive samples sampled each iteration at most
-        :param max_replaces: Maximum number of replaces used during positive sampling (safety measure)
+        :param max_replaces: Maximum number of replaces used during sampling (safety measure)
         :param epochs: Number of training/validation epochs (last epoch is not validated)
         :param warmup: Number of iterations to warmup the embeddings (run before validation-iterations)
         :param iterations: Number of iterations between validations

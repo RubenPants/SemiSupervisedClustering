@@ -4,6 +4,7 @@ from typing import Any, List, Optional
 
 import numpy as np
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 
 
 class Embedder:
@@ -105,21 +106,65 @@ class Embedder:
             self,
             x: np.ndarray,
             y: np.ndarray,
+            val_split: float = .2,
             batch_size: int = 1024,
     ) -> float:
         """Train a positive-sampling sequence for the model and return the corresponding loss."""
         self._model.compile(optimizer='adam', loss=self._positive_loss)
-        return self._model.fit(x, y, batch_size=batch_size, verbose=0).history['loss'][0]
+        return self._train(
+                x=x,
+                y=y,
+                val_split=val_split,
+                batch_size=batch_size,
+        )
     
     def train_negative(
             self,
             x: np.ndarray,
             y: np.ndarray,
+            val_split: float = .2,
             batch_size: int = 1024,
     ) -> float:
         """Train a negative-sampling sequence for the model and return the corresponding loss."""
         self._model.compile(optimizer='adam', loss=self._negative_loss)
-        return self._model.fit(x, y, batch_size=batch_size, verbose=0).history['loss'][0]
+        return self._train(
+                x=x,
+                y=y,
+                val_split=val_split,
+                batch_size=batch_size,
+        )
+    
+    def _train(
+            self,
+            x: np.ndarray,
+            y: np.ndarray,
+            val_split: float = .2,
+            batch_size: int = 1024,
+    ) -> float:
+        """Train the pre-compiled model on the given data, only update if validation set improves."""
+        # Split data in training and validation sets
+        train, val = train_test_split(list(zip(x, y)), test_size=val_split)
+        
+        # Validate first
+        x_val, y_val = zip(*val)
+        x_val = np.vstack(x_val)
+        y_val = np.vstack(y_val)
+        val_score = self._model.evaluate(
+                x=x_val,
+                y=y_val,
+                verbose=0,
+        )
+        
+        # Train the model, only update when improvement is seen
+        x_train, y_train = zip(*train)
+        return self._model.fit(
+                x=np.vstack(x_train),
+                y=np.vstack(y_train),
+                batch_size=batch_size,
+                verbose=0,
+                validation_data=(x_val, y_val),
+                callbacks=[EarlyStopping(baseline=val_score, restore_best_weights=True)]
+        ).history['loss'][0]
     
     def store(self) -> None:
         """Store the current model state."""
@@ -159,3 +204,85 @@ class Embedder:
                 1.,
                 tf.math.maximum(50 * diff, 1e-5)
         )
+
+
+class EarlyStopping(tf.keras.callbacks.Callback):
+    """Custom adaptation of Keras' EarlyStopping callback to support initial model weights."""
+    
+    def __init__(
+            self,
+            monitor='val_loss',
+            min_delta=0,
+            patience=0,
+            verbose=0,
+            mode='auto',
+            baseline=None,
+            restore_best_weights=True,
+    ):
+        super(EarlyStopping, self).__init__()
+        
+        self.monitor = monitor
+        self.patience = patience
+        self.verbose = verbose
+        self.baseline = baseline
+        self.min_delta = abs(min_delta)
+        self.wait = 0
+        self.stopped_epoch = 0
+        self.restore_best_weights = restore_best_weights
+        self.best_weights = None
+        self.best = None
+        
+        if mode not in ['auto', 'min', 'max']:
+            mode = 'auto'
+        if mode == 'min':
+            self.monitor_op = np.less
+        elif mode == 'max':
+            self.monitor_op = np.greater
+        else:
+            if 'acc' in self.monitor:
+                self.monitor_op = np.greater
+            else:
+                self.monitor_op = np.less
+        
+        if self.monitor_op == np.greater:
+            self.min_delta *= 1
+        else:
+            self.min_delta *= -1
+    
+    def on_train_begin(self, logs=None):
+        # Allow instances to be re-used
+        self.wait = 0
+        self.stopped_epoch = 0
+        if self.baseline is not None:
+            self.best = self.baseline
+        else:
+            self.best = np.Inf if self.monitor_op == np.less else -np.Inf
+        self.best_weights = self.model.get_weights()  # Current best weights are the initial weights
+    
+    def on_epoch_end(self, epoch, logs=None):
+        current = self.get_monitor_value(logs)
+        if current is None:
+            return
+        if self.monitor_op(current - self.min_delta, self.best):
+            self.best = current
+            self.wait = 0
+            if self.restore_best_weights:
+                self.best_weights = self.model.get_weights()
+        else:
+            self.wait += 1
+            if self.wait >= self.patience:
+                self.stopped_epoch = epoch
+                self.model.stop_training = True
+                if self.restore_best_weights:
+                    if self.verbose > 0:
+                        print('Restoring model weights from the end of the best epoch.')
+                    self.model.set_weights(self.best_weights)
+    
+    def on_train_end(self, logs=None):
+        if self.stopped_epoch > 0 and self.verbose > 0:
+            print('Epoch %05d: early stopping' % (self.stopped_epoch + 1))
+    
+    def get_monitor_value(self, logs):
+        logs = logs or {}
+        monitor_value = logs.get(self.monitor)
+        return monitor_value
