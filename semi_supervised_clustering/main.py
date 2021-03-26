@@ -208,6 +208,7 @@ class EmbeddingModel:
             epochs: int = 5,
             warmup: int = 8,
             iterations: int = 8,
+            val_ratio: float = .1,
             n_val_cluster: int = 10,
             n_val_discover: int = 2,
             n_val_uncertain: int = 2,
@@ -228,6 +229,7 @@ class EmbeddingModel:
         :param epochs: Number of training/validation epochs (last epoch is not validated)
         :param warmup: Number of iterations to warmup the embeddings (run before validation-iterations)
         :param iterations: Number of iterations between validations
+        :param val_ratio: Ratio used for validation during training
         :param n_val_cluster: Number of samples validated that are close to a cluster-boundary
         :param n_val_discover: Number of potential new clusters discovered during validation
         :param n_val_uncertain: Number of uncertain samples (those that may belong to more than one cluster) validated
@@ -251,6 +253,7 @@ class EmbeddingModel:
                             data=data_clean,
                             n_neg=n_neg,
                             n_pos=n_pos,
+                            val_ratio=val_ratio,
                             batch_size=batch_size,
                             max_replaces=max_replaces,
                     )
@@ -273,6 +276,7 @@ class EmbeddingModel:
                             data=data_clean,
                             n_neg=n_neg,
                             n_pos=n_pos,
+                            val_ratio=val_ratio,
                             batch_size=batch_size,
                             max_replaces=max_replaces,
                     )
@@ -498,6 +502,7 @@ class EmbeddingModel:
             data: List[str],
             n_neg: int,
             n_pos: int,
+            val_ratio: float = .1,
             batch_size: int = 1024,
             max_replaces: int = 10,
     ) -> Tuple[float, Tuple[float, float]]:
@@ -511,7 +516,7 @@ class EmbeddingModel:
         ))
         x = self.encoder.encode_batch(x, sample=True)
         y = np.vstack(y)
-        loss_neg = self.embedder.train_negative(x=x, y=y, batch_size=batch_size)
+        loss_neg = self.embedder.train_negative(x=x, y=y, batch_size=batch_size, val_ratio=val_ratio)
         
         # Positive sampling
         x, y = zip(*self.clusterer.sample_positive(
@@ -522,7 +527,7 @@ class EmbeddingModel:
         ))
         x = self.encoder.encode_batch(x, sample=True)
         y = np.vstack(y)
-        loss_pos = self.embedder.train_positive(x=x, y=y, batch_size=batch_size)
+        loss_pos = self.embedder.train_positive(x=x, y=y, batch_size=batch_size, val_ratio=val_ratio)
         return (loss_neg + loss_pos) / 2, (loss_neg, loss_pos)  # Return the average loss
 
 

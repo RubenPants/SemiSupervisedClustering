@@ -106,7 +106,7 @@ class Embedder:
             self,
             x: np.ndarray,
             y: np.ndarray,
-            val_split: float = .2,
+            val_ratio: float = .1,
             batch_size: int = 1024,
     ) -> float:
         """Train a positive-sampling sequence for the model and return the corresponding loss."""
@@ -114,7 +114,7 @@ class Embedder:
         return self._train(
                 x=x,
                 y=y,
-                val_split=val_split,
+                val_ratio=val_ratio,
                 batch_size=batch_size,
         )
     
@@ -122,7 +122,7 @@ class Embedder:
             self,
             x: np.ndarray,
             y: np.ndarray,
-            val_split: float = .2,
+            val_ratio: float = .1,
             batch_size: int = 1024,
     ) -> float:
         """Train a negative-sampling sequence for the model and return the corresponding loss."""
@@ -130,7 +130,7 @@ class Embedder:
         return self._train(
                 x=x,
                 y=y,
-                val_split=val_split,
+                val_ratio=val_ratio,
                 batch_size=batch_size,
         )
     
@@ -138,12 +138,12 @@ class Embedder:
             self,
             x: np.ndarray,
             y: np.ndarray,
-            val_split: float = .2,
+            val_ratio: float = .1,
             batch_size: int = 1024,
     ) -> float:
         """Train the pre-compiled model on the given data, only update if validation set improves."""
         # Split data in training and validation sets
-        train, val = train_test_split(list(zip(x, y)), test_size=val_split)
+        train, val = train_test_split(list(zip(x, y)), test_size=val_ratio)
         
         # Validate first
         x_val, y_val = zip(*val)
