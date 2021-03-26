@@ -142,28 +142,35 @@ class Embedder:
             batch_size: int = 1024,
     ) -> float:
         """Train the pre-compiled model on the given data, only update if validation set improves."""
-        # Split data in training and validation sets
-        train, val = train_test_split(list(zip(x, y)), test_size=val_ratio)
-        
-        # Validate first
-        x_val, y_val = zip(*val)
-        x_val = np.vstack(x_val)
-        y_val = np.vstack(y_val)
-        val_score = self._model.evaluate(
-                x=x_val,
-                y=y_val,
-                verbose=0,
-        )
+        # Split data in training and validation sets if requested
+        callbacks = []
+        if val_ratio:
+            train, val = train_test_split(list(zip(x, y)), test_size=val_ratio)
+            
+            # Validate first
+            x_val, y_val = zip(*val)
+            x_val = np.vstack(x_val)
+            y_val = np.vstack(y_val)
+            val_score = self._model.evaluate(
+                    x=x_val,
+                    y=y_val,
+                    verbose=0,
+            )
+            callbacks.append(EarlyStopping(baseline=val_score, restore_best_weights=True))
+            x_train, y_train = zip(*train)
+            val = (x_val, y_val)
+        else:
+            x_train, y_train = x, y
+            val = None
         
         # Train the model, only update when improvement is seen
-        x_train, y_train = zip(*train)
         return self._model.fit(
                 x=np.vstack(x_train),
                 y=np.vstack(y_train),
                 batch_size=batch_size,
                 verbose=0,
-                validation_data=(x_val, y_val),
-                callbacks=[EarlyStopping(baseline=val_score, restore_best_weights=True)]
+                validation_data=val,
+                callbacks=callbacks
         ).history['loss'][0]
     
     def store(self) -> None:
