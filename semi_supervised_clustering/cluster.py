@@ -87,7 +87,7 @@ class Clusterer:
             results.append((cluster_ids[idx], similarity[i, idx]))
         return results
     
-    def all_clusters_prob(self, embeddings: np.ndarray) -> Tuple[List[str], np.ndarray]:
+    def all_clusters_prob(self, embeddings: np.ndarray, use_softmax: bool = False) -> Tuple[List[str], np.ndarray]:
         """Get the softmax probabilities to all possible clusters."""
         assert self._centroids  # Centroids must be set in advance
         
@@ -97,7 +97,7 @@ class Clusterer:
         
         # Calculate similarity with cluster centroids
         similarity = cosine_similarity(embeddings, cluster_embs)
-        return cluster_ids, softmax(similarity, axis=1)
+        return cluster_ids, softmax(similarity, axis=1) if use_softmax else similarity
     
     def add_clusters(self, known_clusters: Dict[str, List[str]]) -> None:
         """Add known clusters to the data, cluster-IDs that are None are considered cluster-less noise."""

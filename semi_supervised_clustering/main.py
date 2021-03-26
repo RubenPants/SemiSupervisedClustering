@@ -122,10 +122,10 @@ class EmbeddingModel:
         if not sentences: return []  # To prevent broken predictions
         return self.clusterer.cluster_prob(self.embed(sentences))
     
-    def get_all_cluster_prob(self, sentences: List[str]) -> Tuple[List[str], np.ndarray]:
+    def get_all_cluster_prob(self, sentences: List[str], use_softmax: bool = False) -> Tuple[List[str], np.ndarray]:
         """Get softmax probabilities for all clusters."""
         if not sentences: return [], np.zeros((0, self.embedder.dim))  # To prevent broken predictions
-        return self.clusterer.all_clusters_prob(self.embed(sentences))
+        return self.clusterer.all_clusters_prob(self.embed(sentences), use_softmax=use_softmax)
     
     def get_thr(self) -> float:
         """Get the clustering threshold."""
