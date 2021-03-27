@@ -111,7 +111,7 @@ class Embedder:
             batch_size: int = 1024,
     ) -> Any:
         """
-        Train the pre-compiled model on the given data, only update if validation set improves.
+        Train the model on the given data.
         
         :param x: Textual inputs encoded in a multi-hot vector
         :param y: Target vector, albeit as cluster centroid or repulsion vector
@@ -121,10 +121,12 @@ class Embedder:
         :param batch_size: Batch-size used during training
         :return: Training history
         """
-        # Train the model, only update when improvement is seen
-        callbacks = [
-            tf.keras.callbacks.EarlyStopping(restore_best_weights=True),
-        ]
+        # Set callbacks used during training
+        callbacks = []
+        if val_ratio:
+            callbacks.append(tf.keras.callbacks.EarlyStopping(restore_best_weights=True, patience=1))
+            
+        # Train the model
         return self._model.fit(
                 x=x,
                 y=np.append(switch, y, axis=1),
