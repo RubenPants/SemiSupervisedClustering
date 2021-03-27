@@ -258,7 +258,6 @@ class EmbeddingModel:
             try:
                 for i in range(warmup):
                     hist = self._train_push_pull(
-                            data=data_clean,
                             n_neg=n_neg,
                             n_pos=n_pos,
                             val_ratio=val_ratio,
@@ -285,7 +284,6 @@ class EmbeddingModel:
             try:
                 for i in range(iterations):
                     hist = self._train_push_pull(
-                            data=data_clean,
                             n_neg=n_neg,
                             n_pos=n_pos,
                             val_ratio=val_ratio,
@@ -303,11 +301,9 @@ class EmbeddingModel:
             finally:
                 pbar.close()
             
-            # Set cluster-centroids using new embeddings
-            embeddings = self.embed(data_clean)
+            # Set cluster-centroids using the embedder's current state
             self.clusterer.set_centroids(
-                    items=data_clean,
-                    embeddings=embeddings,
+                    embedding_f=self.embed,
             )
             
             # Calculate ratio of samples in cluster
@@ -330,7 +326,7 @@ class EmbeddingModel:
                         n_discover=n_val_discover,
                         n_uncertain=n_val_uncertain,
                         items=data_clean,
-                        embeddings=embeddings,
+                        embeddings=self.embed(data_clean),
                         weights=data_count,  # Weight validation using item-counts
                         cli=cli,
                 )
@@ -522,7 +518,6 @@ class EmbeddingModel:
     
     def _train_push_pull(
             self,
-            data: List[str],
             n_neg: int,
             n_pos: int,
             val_ratio: float = .1,
@@ -531,13 +526,10 @@ class EmbeddingModel:
             debug: bool = False,
     ) -> Any:
         """Perform a single push-pull training."""
-        embeddings = self.embed(data)
-        
         # Sample negative
         x_neg, y_neg = zip(*self.clusterer.sample_negative(
                 n=n_neg,
-                items=data,
-                embeddings=embeddings,
+                embedding_f=self.embed,
                 max_replaces=max_replaces,
                 debug=debug,
         ))
@@ -545,8 +537,7 @@ class EmbeddingModel:
         # Sample positive
         x_pos, y_pos = zip(*self.clusterer.sample_positive(
                 n=n_pos,
-                items=data,
-                embeddings=embeddings,
+                embedding_f=self.embed,
                 max_replaces=max_replaces,
                 debug=debug,
         ))

@@ -56,7 +56,7 @@ class Clusterer:
     
     def __call__(self, embeddings: np.ndarray) -> List[Optional[str]]:
         """Get the best-suiting clusters for the given embeddings, or None if no such cluster exists."""
-        assert self._centroids  # Centroids must be set in advance
+        assert self._centroids != {}  # Centroids must be set in advance
         
         # Setup known database
         cluster_ids, cluster_embs = zip(*self._centroids.items())
@@ -73,7 +73,7 @@ class Clusterer:
     
     def cluster_prob(self, embeddings: np.ndarray) -> List[Tuple[str, float]]:
         """Get the best-suiting clusters together with cosine-similarity for the given embeddings."""
-        assert self._centroids  # Centroids must be set in advance
+        assert self._centroids != {}  # Centroids must be set in advance
         
         # Setup known database
         cluster_ids, cluster_embs = zip(*self._centroids.items())
@@ -90,7 +90,7 @@ class Clusterer:
     
     def all_clusters_prob(self, embeddings: np.ndarray, use_softmax: bool = False) -> Tuple[List[str], np.ndarray]:
         """Get the softmax probabilities to all possible clusters."""
-        assert self._centroids  # Centroids must be set in advance
+        assert self._centroids != {}  # Centroids must be set in advance
         
         # Setup known database
         cluster_ids, cluster_embs = zip(*sorted(self._centroids.items(), key=lambda x: x[0] if x[0] else ''))
@@ -190,22 +190,22 @@ class Clusterer:
         """Count the number of clusters."""
         return len(self.get_all_cluster_ids())
     
-    def get_centroids(self, items: List[str], embeddings: np.ndarray) -> Dict[str, np.ndarray]:
-        """Create cluster-centroids and update centroid cache."""
-        centroids = {}
-        relevant_items = [(idx, item) for idx, item in enumerate(items) if item in self._clusters.keys()]
-        for c_id in self.get_all_cluster_ids():
-            indices = [i for i, x in relevant_items if self._clusters[x] == c_id]
-            assert indices != []
-            centroids[c_id] = np.take(embeddings, indices, axis=0).mean(0)
-        return centroids
+    def get_centroids(self) -> Dict[str, np.ndarray]:
+        """Get the previously-created cluster-centroids."""
+        assert self._centroids != {}
+        return self._centroids
     
-    def set_centroids(self, items: List[str], embeddings: np.ndarray) -> None:
-        """Set and store the final list of centroids, suited to the provided data."""
-        self._centroids = self.get_centroids(
-                items=items,
-                embeddings=embeddings,
-        )
+    def set_centroids(self, embedding_f: Callable[..., np.ndarray]) -> None:
+        """Set and store the cluster centroids."""
+        # Extract all the labeled inputs and embed them
+        all_inputs, all_clusters = zip(*self.get_all_labels().items())
+        embeddings = embedding_f(all_inputs)
+        
+        # Create the centroids
+        self._centroids = {}  # Reset previous centroids
+        for c_id in set(all_clusters) - {None,}:
+            indices = [i for i, x in enumerate(all_clusters) if x == c_id]
+            self._centroids[c_id] = np.take(embeddings, indices, axis=0).mean(0)
     
     def sample_unsupervised(
             self,
@@ -245,8 +245,7 @@ class Clusterer:
     def sample_positive(
             self,
             n: int,
-            items: List[str],
-            embeddings: np.ndarray,
+            embedding_f: Callable[..., np.ndarray],
             max_replaces: int = 10,
             debug: bool = False,
     ) -> List[Tuple[str, np.ndarray]]:
@@ -254,17 +253,15 @@ class Clusterer:
         Sample positive items from the clusters with their centroid as target-vector.
 
         :param n: Number of samples (upper limit, see max_replaces)
-        :param items: Input-items to select from (assumed to be cleaned)
-        :param embeddings: Embeddings used to determine the centroids
+        :param embedding_f: Embedding function (embedder's current state) used to embed the labeled cluster-data
         :param max_replaces: Maximum number of times an item can be replaced during sampling
         :param debug: Show debugging information
         :return: List of samples together with their corresponding cluster-centroid-embeddings
         """
         assert self._clusters
-        self._centroids = {}  # Reset centroids when model gets trained
         
-        # Update the cluster-centroids using the provided embeddings
-        centroids = self.get_centroids(items=items, embeddings=embeddings)
+        # Set the centroids to the model's current state
+        self.set_centroids(embedding_f)
         
         # Get all clusters containing more than one item (otherwise embedding is centroid)
         count = Counter(self._clusters.values())
@@ -274,22 +271,21 @@ class Clusterer:
         # Sample with (limited) replacement, unweighted sampling
         result = []
         for sample in np.random.choice(known_items_plural, size=min(n, len(known_items_plural)), replace=False):
-            result.append((sample, centroids[self._clusters[sample]]))
+            result.append((sample, self._centroids[self._clusters[sample]]))
         
         # Print debugging information if requested
         if debug:
             print(f"Sampling positive:")
             print(f" - Number of samples: {len(result)}")
             print(f" - Number of known items (not None): {len([v for v in self._clusters.values() if v])}")
-            print(f" - Number of centroids: {len(centroids)}")
+            print(f" - Number of centroids: {len(self._centroids)}")
             print(f" - Maximum number of replaces: {min(max_replaces, ceil(n / len(known_items_plural)))}")
         return result
     
     def sample_negative(
             self,
             n: int,
-            items: List[str],
-            embeddings: np.ndarray,
+            embedding_f: Callable[..., np.ndarray],
             max_replaces: int = 10,
             debug: bool = False,
     ) -> List[Tuple[str, np.ndarray]]:
@@ -300,17 +296,15 @@ class Clusterer:
         cluster to which x belongs. Note that the None-cluster don't have a centroid.
 
         :param n: Number of samples
-        :param items: Input-items to select from (assumed to be cleaned)
-        :param embeddings: Embeddings used to determine the centroids
+        :param embedding_f: Embedding function (embedder's current state) used to embed the labeled cluster-data
         :param max_replaces: Maximum number of times an item can be replaced during sampling
         :param debug: Show debugging information
         :return: List of samples together with their corresponding (repulsion) vector
         """
         assert self._clusters
-        self._centroids = {}  # Reset centroids when model gets trained
         
-        # Update the cluster-centroids using the provided embeddings
-        centroids = self.get_centroids(items=items, embeddings=embeddings)
+        # Set the centroids to the model's current state
+        self.set_centroids(embedding_f)
         
         # Enlist all sampling options (i.e. all labeled samples)
         known_items = list(self._clusters.keys())
@@ -318,7 +312,9 @@ class Clusterer:
         
         def get_repulsion_vector(item: str) -> np.ndarray:
             """Get a repulsion vector - random centroid different from own cluster - for the given item."""
-            return centroids[choice([c_id for c_id in self.get_all_cluster_ids() if c_id != self._clusters[item]])]
+            return self._centroids[
+                choice([c_id for c_id in self.get_all_cluster_ids() if c_id != self._clusters[item]])
+            ]
         
         # Sample with (limited) replacement, unweighted sampling
         result = []
@@ -330,7 +326,7 @@ class Clusterer:
             print(f"Sampling negative:")
             print(f" - Number of samples: {len(result)}")
             print(f" - Number of known items: {len(list(self._clusters.keys()))}")
-            print(f" - Number of centroids: {len(centroids)}")
+            print(f" - Number of centroids: {len(self._centroids)}")
             print(f" - Maximum number of replaces: {min(max_replaces, ceil(n / len(known_items)))}")
         return result
     
@@ -361,7 +357,6 @@ class Clusterer:
         :param cli: Use built-in CLI to validate the samples
         :return: If not validated via CLI; list of validations (similarity_score, (new_item, proposed_cluster))
         """
-        self.set_centroids(items=items, embeddings=embeddings)
         validating_samples: List[Tuple[float, Tuple[str, Optional[str]]]] = []
         
         # Generate the items to validate
@@ -428,6 +423,8 @@ class Clusterer:
         :param weights: Sampling weights corresponding each item, no weighting is applied if not provided
         :return: A list of validation items, where each such item looks like (similarity, (unclustered,clustered))
         """
+        assert self._centroids != {}
+        
         # Generate weights if not provided, only consider un-clustered items
         weights = weights if weights else [1, ] * len(items)
         assert len(weights) == len(items)
@@ -516,6 +513,8 @@ class Clusterer:
         :param weights: Weights applied on the sampling (to favor more frequent items)
         :return: A list of validation items, where each such item looks like (similarity, (unclustered,clustered))
         """
+        assert self._centroids != {}
+        
         # Generate weights if not provided, only consider un-clustered items
         weights = weights if weights else [1, ] * len(items)
         assert len(weights) == len(items)
@@ -625,8 +624,11 @@ class Clusterer:
     def store(self) -> None:
         """Store the current centroids, training and validation data."""
         # Store the centroids
-        with open(self._path_model / f"{self}", 'w') as file:
-            json.dump({k: v.tolist() for k, v in self._centroids.items()}, file, sort_keys=True)
+        if self._centroids != {}:
+            with open(self._path_model / f"{self}", 'w') as file:
+                json.dump({k: v.tolist() for k, v in self._centroids.items()}, file, sort_keys=True)
+        else:
+            print("No centroids created yet to store!")
         
         # Store the (validation) clusters
         with open(self._path_data / f"{self}-train", 'w') as file:
