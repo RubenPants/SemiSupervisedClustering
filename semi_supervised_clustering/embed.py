@@ -4,7 +4,6 @@ from typing import Any, List, Optional
 
 import numpy as np
 import tensorflow as tf
-from sklearn.model_selection import train_test_split
 
 
 class Embedder:
@@ -97,81 +96,44 @@ class Embedder:
                 outputs=x,
                 name=str(self),
         )
-        self._model.compile(optimizer='adam')
+        self._model.compile(optimizer='adam', loss=self._custom_loss)
         if show_overview:
             self._model.summary()
         self.store()
     
-    def train_positive(
+    def train(
             self,
             x: np.ndarray,
             y: np.ndarray,
+            switch: np.ndarray,
             val_ratio: float = .1,
+            epochs: int = 5,
             batch_size: int = 1024,
-    ) -> float:
-        """Train a positive-sampling sequence for the model and return the corresponding loss."""
-        self._model.compile(optimizer='adam', loss=self._positive_loss)
-        return self._train(
-                x=x,
-                y=y,
-                val_ratio=val_ratio,
-                batch_size=batch_size,
-        )
-    
-    def train_negative(
-            self,
-            x: np.ndarray,
-            y: np.ndarray,
-            val_ratio: float = .1,
-            batch_size: int = 1024,
-    ) -> float:
-        """Train a negative-sampling sequence for the model and return the corresponding loss."""
-        self._model.compile(optimizer='adam', loss=self._negative_loss)
-        return self._train(
-                x=x,
-                y=y,
-                val_ratio=val_ratio,
-                batch_size=batch_size,
-        )
-    
-    def _train(
-            self,
-            x: np.ndarray,
-            y: np.ndarray,
-            val_ratio: float = .1,
-            batch_size: int = 1024,
-    ) -> float:
-        """Train the pre-compiled model on the given data, only update if validation set improves."""
-        # Split data in training and validation sets if requested
-        callbacks = []
-        if val_ratio:
-            train, val = train_test_split(list(zip(x, y)), test_size=val_ratio)
-            
-            # Validate first
-            x_val, y_val = zip(*val)
-            x_val = np.vstack(x_val)
-            y_val = np.vstack(y_val)
-            val_score = self._model.evaluate(
-                    x=x_val,
-                    y=y_val,
-                    verbose=0,
-            )
-            callbacks.append(EarlyStopping(baseline=val_score, restore_best_weights=True))
-            x_train, y_train = zip(*train)
-            val = (x_val, y_val)
-        else:
-            x_train, y_train = x, y
-            val = None
+    ) -> Any:
+        """
+        Train the pre-compiled model on the given data, only update if validation set improves.
         
+        :param x: Textual inputs encoded in a multi-hot vector
+        :param y: Target vector, albeit as cluster centroid or repulsion vector
+        :param switch: Indicator if y is cluster centroid (1) or repulsion vector (0)
+        :param val_ratio: Proportion used for validation
+        :param epochs: Number of epochs used each training
+        :param batch_size: Batch-size used during training
+        :return: Training history
+        """
         # Train the model, only update when improvement is seen
+        callbacks = [
+            tf.keras.callbacks.EarlyStopping(restore_best_weights=True),
+        ]
         return self._model.fit(
-                x=np.vstack(x_train),
-                y=np.vstack(y_train),
+                x=x,
+                y=np.append(switch, y, axis=1),
+                validation_split=val_ratio,
+                epochs=epochs,
                 batch_size=batch_size,
+                callbacks=callbacks,
                 verbose=0,
-                validation_data=val,
-                callbacks=callbacks
-        ).history['loss'][0]
+        ).history
     
     def store(self) -> None:
         """Store the current model state."""
@@ -183,6 +145,7 @@ class Embedder:
             self._model = tf.keras.models.load_model(
                     self._path / str(self),
                     custom_objects={
+                        '_custom_loss':   self._custom_loss,
                         '_positive_loss': self._positive_loss,
                         '_negative_loss': self._negative_loss,
                     },
@@ -190,17 +153,28 @@ class Embedder:
             return True
         return False
     
+    def _custom_loss(self, data, y_pred) -> Any:
+        """Combined loss for positive and negative relying on a switch."""
+        switch_tensor = data[:, 0]
+        y_true = data[:, 1:]
+        return tf.keras.backend.switch(
+                tf.keras.backend.equal(switch_tensor, 1),
+                self._positive_loss(y_true, y_pred),
+                self._negative_loss(y_true, y_pred),
+        )
+    
     def _positive_loss(self, y_true, y_pred) -> Any:
-        """MAE loss on the dot-difference for positive sampling (https://www.desmos.com/calculator/uh9yklg2ij)."""
+        """MAE loss on the dot-difference for positive sampling (https://www.desmos.com/calculator/bwnomuuzwb)."""
         y_true = tf.reshape(y_true, (-1, self._layers[-1]), name='reshape_y_true')
         y_true = tf.math.l2_normalize(y_true, axis=-1, name='normalize_y_true')
         y_pred = tf.reshape(y_pred, (-1, self._layers[-1]), name='reshape_y_pred')
         y_pred = tf.math.l2_normalize(y_pred, axis=-1, name='normalize_y_pred')
         dots = tf.reduce_sum(y_true * y_pred, axis=-1, name='dot_product')
-        return tf.math.maximum(0., tf.math.subtract(1., dots, name='subtract_1'))
+        diff = tf.math.maximum(0., tf.math.subtract(1., dots, name='subtract_1'))
+        return diff + tf.math.pow(diff, 2)
     
     def _negative_loss(self, y_true, y_pred):
-        """Asymptotic graph near x=0 for negative sampling (https://www.desmos.com/calculator/uh9yklg2ij)."""
+        """Asymptotic graph near x=0 for negative sampling (https://www.desmos.com/calculator/bwnomuuzwb)."""
         y_true = tf.reshape(y_true, (-1, self._layers[-1]), name='reshape_y_true')
         y_true = tf.math.l2_normalize(y_true, axis=-1, name='normalize_y_true')
         y_pred = tf.reshape(y_pred, (-1, self._layers[-1]), name='reshape_y_pred')
@@ -209,87 +183,5 @@ class Embedder:
         diff = tf.math.maximum(0., tf.math.subtract(1., dots, name='subtract_1'))
         return tf.math.divide(
                 1.,
-                tf.math.maximum(50 * diff, 1e-5)
+                tf.math.maximum(20 * diff, 1e-5)
         )
-
-
-class EarlyStopping(tf.keras.callbacks.Callback):
-    """Custom adaptation of Keras' EarlyStopping callback to support initial model weights."""
-    
-    def __init__(
-            self,
-            monitor='val_loss',
-            min_delta=0,
-            patience=0,
-            verbose=0,
-            mode='auto',
-            baseline=None,
-            restore_best_weights=True,
-    ):
-        super(EarlyStopping, self).__init__()
-        
-        self.monitor = monitor
-        self.patience = patience
-        self.verbose = verbose
-        self.baseline = baseline
-        self.min_delta = abs(min_delta)
-        self.wait = 0
-        self.stopped_epoch = 0
-        self.restore_best_weights = restore_best_weights
-        self.best_weights = None
-        self.best = None
-        
-        if mode not in ['auto', 'min', 'max']:
-            mode = 'auto'
-        if mode == 'min':
-            self.monitor_op = np.less
-        elif mode == 'max':
-            self.monitor_op = np.greater
-        else:
-            if 'acc' in self.monitor:
-                self.monitor_op = np.greater
-            else:
-                self.monitor_op = np.less
-        
-        if self.monitor_op == np.greater:
-            self.min_delta *= 1
-        else:
-            self.min_delta *= -1
-    
-    def on_train_begin(self, logs=None):
-        # Allow instances to be re-used
-        self.wait = 0
-        self.stopped_epoch = 0
-        if self.baseline is not None:
-            self.best = self.baseline
-        else:
-            self.best = np.Inf if self.monitor_op == np.less else -np.Inf
-        self.best_weights = self.model.get_weights()  # Current best weights are the initial weights
-    
-    def on_epoch_end(self, epoch, logs=None):
-        current = self.get_monitor_value(logs)
-        if current is None:
-            return
-        if self.monitor_op(current - self.min_delta, self.best):
-            self.best = current
-            self.wait = 0
-            if self.restore_best_weights:
-                self.best_weights = self.model.get_weights()
-        else:
-            self.wait += 1
-            if self.wait >= self.patience:
-                self.stopped_epoch = epoch
-                self.model.stop_training = True
-                if self.restore_best_weights:
-                    if self.verbose > 0:
-                        print('Restoring model weights from the end of the best epoch.')
-                    self.model.set_weights(self.best_weights)
-    
-    def on_train_end(self, logs=None):
-        if self.stopped_epoch > 0 and self.verbose > 0:
-            print('Epoch %05d: early stopping' % (self.stopped_epoch + 1))
-    
-    def get_monitor_value(self, logs):
-        logs = logs or {}
-        monitor_value = logs.get(self.monitor)
-        return monitor_value

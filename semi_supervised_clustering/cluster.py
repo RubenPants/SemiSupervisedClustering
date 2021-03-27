@@ -1,6 +1,7 @@
 """Cluster the found data."""
 import json
 from collections import Counter
+from math import ceil
 from pathlib import Path
 from random import choice, shuffle
 from typing import Callable, Dict, List, Optional, Set, Tuple
@@ -266,7 +267,7 @@ class Clusterer:
         # Get all clusters containing more than one item (otherwise embedding is centroid)
         count = Counter(self._clusters.values())
         known_items_plural = [k for k, v in self._clusters.items() if v and count[v] > 1]
-        known_items_plural *= max_replaces
+        known_items_plural *= min(max_replaces, ceil(n / len(known_items_plural)))
         
         # Sample with (limited) replacement, unweighted sampling
         result = []
@@ -285,7 +286,7 @@ class Clusterer:
         Sample negative items from the clusters together with a repulsion-vector.
 
         Every sampled couple consists of a labeled item (x) and a cluster-centroid (y) from a cluster different from the
-        cluster to which x belongs. Note that the None-cluster doesn't have a centroid.
+        cluster to which x belongs. Note that the None-cluster don't have a centroid.
 
         :param n: Number of samples
         :param items: Input-items to select from (assumed to be cleaned)
@@ -301,10 +302,10 @@ class Clusterer:
         
         # Enlist all sampling options
         known_items = list(set(self._clusters.keys()) & set(items))
-        known_items *= max_replaces
+        known_items *= min(max_replaces, ceil(n / len(known_items)))
         
         def get_repulsion_vector(item: str) -> np.ndarray:
-            """Get a repulsion vector for the given item."""
+            """Get a repulsion vector - random centroid different from own cluster - for the given item."""
             return centroids[choice([c_id for c_id in self.get_all_cluster_ids() if c_id != self._clusters[item]])]
         
         # Sample with (limited) replacement, unweighted sampling

@@ -2,7 +2,7 @@
 from collections import Counter
 from math import log
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import numpy as np
 import tensorflow as tf
@@ -114,7 +114,7 @@ class EmbeddingModel:
     
     def embed(self, sentences: List[str]) -> np.ndarray:
         """Embed the list of sentences."""
-        if not sentences: return np.zeros((0, self.embedder.dim))  # To prevent breaks
+        if not sentences: return np.zeros((0, self.embedder.dim), dtype=np.float32)  # To prevent breaks
         return self.embedder(self.encoder([self.clean_f(s) for s in sentences]))
     
     def get_cluster_prob(self, sentences: List[str]) -> List[Tuple[str, float]]:
@@ -124,7 +124,7 @@ class EmbeddingModel:
     
     def get_all_cluster_prob(self, sentences: List[str], use_softmax: bool = False) -> Tuple[List[str], np.ndarray]:
         """Get softmax probabilities for all clusters."""
-        if not sentences: return [], np.zeros((0, self.embedder.dim))  # To prevent broken predictions
+        if not sentences: return [], np.zeros((0, self.embedder.dim), dtype=np.float32)  # To prevent broken predictions
         return self.clusterer.all_clusters_prob(self.embed(sentences), use_softmax=use_softmax)
     
     def get_thr(self) -> float:
@@ -175,7 +175,13 @@ class EmbeddingModel:
             ))
             x = self.encoder.encode_batch(x, sample=True)
             y = np.vstack(y)
-            self.embedder.train_negative(x=x, y=y, batch_size=1024)
+            switch = np.zeros((len(y), 1), dtype=np.float32)
+            self.embedder.train(
+                    x=x,
+                    y=y,
+                    switch=switch,
+                    batch_size=1024,
+            )
             
             # Create initial clusters
             updated = True
@@ -214,7 +220,7 @@ class EmbeddingModel:
             n_val_uncertain: int = 2,
             show_overview: bool = False,
             cli: bool = False,
-    ) -> Tuple[List[float], List[Tuple[float, float]]]:
+    ) -> Any:
         """
         Train the embedding model using the supervised clusters.
         
@@ -235,21 +241,21 @@ class EmbeddingModel:
         :param n_val_uncertain: Number of uncertain samples (those that may belong to more than one cluster) validated
         :param show_overview: Show/print overview of the training process each iteration
         :param cli: Validate using the CLI, if False the training will continue without validation
-        :return: Global loss (list of floats), split-loss (list of (neg_loss, pos_loss))
+        :return: Training history
         """
         if not self.clusterer.get_cluster_count():
             raise Exception("Initialise the models first, as well as some initial labels")
         
         # Initialise training
         data_clean, data_count = self._transform_data(data=data)
-        loss, loss_split = [], []
+        history = None
         
         # Warmup the embeddings
         if warmup:
             pbar = tqdm(total=warmup, desc="Warmup, loss ???")
             try:
                 for i in range(warmup):
-                    a, b = self._train_push_pull(
+                    hist = self._train_push_pull(
                             data=data_clean,
                             n_neg=n_neg,
                             n_pos=n_pos,
@@ -257,9 +263,12 @@ class EmbeddingModel:
                             batch_size=batch_size,
                             max_replaces=max_replaces,
                     )
-                    loss.append(a)
-                    loss_split.append(b)
-                    pbar.set_description(f"Warmup, loss {round(loss[-1], 5)}")
+                    if not history:
+                        history = hist
+                    else:
+                        for k in history.keys():
+                            history[k] += hist[k]
+                    pbar.set_description(f"Warmup, loss {round(history['loss'][-1], 5)}")
                     pbar.update()
             finally:
                 pbar.close()
@@ -272,7 +281,7 @@ class EmbeddingModel:
             pbar = tqdm(total=iterations, desc="Loss ???")
             try:
                 for i in range(iterations):
-                    a, b = self._train_push_pull(
+                    hist = self._train_push_pull(
                             data=data_clean,
                             n_neg=n_neg,
                             n_pos=n_pos,
@@ -280,9 +289,12 @@ class EmbeddingModel:
                             batch_size=batch_size,
                             max_replaces=max_replaces,
                     )
-                    loss.append(a)
-                    loss_split.append(b)
-                    pbar.set_description(f"Loss {round(loss[-1], 5)}")
+                    if not history:
+                        history = hist
+                    else:
+                        for k in history.keys():
+                            history[k] += hist[k]
+                    pbar.set_description(f"Loss {round(history['loss'][-1], 5)}")
                     pbar.update()
             finally:
                 pbar.close()
@@ -321,7 +333,7 @@ class EmbeddingModel:
         
         # Store the trained model
         self.store()
-        return loss, loss_split
+        return history
     
     def validate(
             self,
@@ -365,7 +377,7 @@ class EmbeddingModel:
             iterations: int = 8,
             batch_size: int = 1024,
             max_replaces: int = 10,
-    ) -> List[float]:
+    ) -> Any:
         """
         Initialise the embedding-model using pre-existing sentence embeddings.
         
@@ -374,30 +386,37 @@ class EmbeddingModel:
         :param iterations: Number of iterations between validations
         :param batch_size: Batch-size used during training
         :param max_replaces: Maximum number of times the same data-sample is replaced during sampling
-        :return: Final training loss
+        :return: Training history
         """
         assert len(data) == len(embeddings)
         
         # Initialise fitting of provided embeddings
         data = [self.clean_f(d) for d in data] * max_replaces
         y = np.vstack([embeddings, ] * max_replaces)
-        loss = []
+        switch = np.ones((len(y), 1), dtype=np.float32)
+        history = None
         
         # Fit pre-trained embeddings on provided data
         pbar = tqdm(total=iterations, desc="Loss ???")
         try:
             for i in range(iterations):
                 x = self.encoder.encode_batch(data, sample=True)  # Re-sample every iteration
-                loss.append(self.embedder.train_positive(
+                hist = self.embedder.train(
                         x=x,
                         y=y,
+                        switch=switch,
                         batch_size=batch_size,
-                ))
-                pbar.set_description(f"Loss {round(loss[-1], 5)}")
+                )
+                if not history:
+                    history = hist
+                else:
+                    for k in history.keys():
+                        history[k] += hist[k]
+                pbar.set_description(f"Loss {round(history['loss'][-1], 5)}")
                 pbar.update()
         finally:
             pbar.close()
-        return loss
+        return history
     
     def visualise_tensorboard(
             self,
@@ -505,30 +524,43 @@ class EmbeddingModel:
             val_ratio: float = .1,
             batch_size: int = 1024,
             max_replaces: int = 10,
-    ) -> Tuple[float, Tuple[float, float]]:
+    ) -> Any:
         """Perform a single push-pull training."""
-        # Negative sampling
-        x, y = zip(*self.clusterer.sample_negative(
+        embeddings = self.embed(data)
+        
+        # Sample negative
+        x_neg, y_neg = zip(*self.clusterer.sample_negative(
                 n=n_neg,
                 items=data,
-                embeddings=self.embed(data),
+                embeddings=embeddings,
                 max_replaces=max_replaces,
         ))
-        x = self.encoder.encode_batch(x, sample=True)
-        y = np.vstack(y)
-        loss_neg = self.embedder.train_negative(x=x, y=y, batch_size=batch_size, val_ratio=val_ratio)
         
-        # Positive sampling
-        x, y = zip(*self.clusterer.sample_positive(
+        # Sample positive
+        x_pos, y_pos = zip(*self.clusterer.sample_positive(
                 n=n_pos,
                 items=data,
-                embeddings=self.embed(data),
+                embeddings=embeddings,
                 max_replaces=max_replaces,
         ))
-        x = self.encoder.encode_batch(x, sample=True)
-        y = np.vstack(y)
-        loss_pos = self.embedder.train_positive(x=x, y=y, batch_size=batch_size, val_ratio=val_ratio)
-        return (loss_neg + loss_pos) / 2, (loss_neg, loss_pos)  # Return the average loss
+        
+        # Encode and format training inputs
+        x = self.encoder.encode_batch(x_neg + x_pos, sample=True)
+        y = np.vstack(y_neg + y_pos)
+        switch = np.append(
+                np.zeros((len(y_neg), 1), dtype=np.float32),
+                np.ones((len(y_pos), 1), dtype=np.float32),
+                axis=0,
+        )
+        
+        # Train and return the history
+        return self.embedder.train(
+                x=x,
+                y=y,
+                switch=switch,
+                batch_size=batch_size,
+                val_ratio=val_ratio,
+        )
 
 
 def get_percentage(a, b) -> str:
