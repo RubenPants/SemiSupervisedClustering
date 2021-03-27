@@ -1,5 +1,6 @@
 """Create the embedding model."""
 from pathlib import Path
+from random import shuffle
 from typing import Any, List, Optional
 
 import numpy as np
@@ -123,6 +124,12 @@ class Embedder:
         :param debug: Print debugging information during training
         :return: Training history
         """
+        # Combine target labels and switch indicators, and shuffle the dataset first
+        data = list(zip(x, np.append(switch, y, axis=1)))
+        shuffle(data)
+        inp, out = zip(*data)
+        inp, out = np.vstack(inp), np.vstack(out)
+        
         # Set callbacks used during training
         callbacks = []
         if val_ratio:
@@ -134,9 +141,9 @@ class Embedder:
         
         # Train the model
         return self._model.fit(
-                x=x,
-                y=np.append(switch, y, axis=1),
-                validation_split=val_ratio,
+                x=inp,
+                y=out,
+                validation_split=val_ratio,  # Uses last val_ratio% of dataset
                 epochs=epochs,
                 batch_size=batch_size,
                 callbacks=callbacks,
