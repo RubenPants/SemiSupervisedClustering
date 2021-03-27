@@ -109,6 +109,7 @@ class Embedder:
             val_ratio: float = .1,
             epochs: int = 5,
             batch_size: int = 1024,
+            debug: bool = False,
     ) -> Any:
         """
         Train the model on the given data.
@@ -119,13 +120,18 @@ class Embedder:
         :param val_ratio: Proportion used for validation
         :param epochs: Number of epochs used each training
         :param batch_size: Batch-size used during training
+        :param debug: Print debugging information during training
         :return: Training history
         """
         # Set callbacks used during training
         callbacks = []
         if val_ratio:
-            callbacks.append(tf.keras.callbacks.EarlyStopping(restore_best_weights=True, patience=1))
-            
+            callbacks.append(tf.keras.callbacks.EarlyStopping(
+                    restore_best_weights=True,
+                    patience=1,
+                    verbose=2 if debug else 0,
+            ))
+        
         # Train the model
         return self._model.fit(
                 x=x,
@@ -134,7 +140,7 @@ class Embedder:
                 epochs=epochs,
                 batch_size=batch_size,
                 callbacks=callbacks,
-                verbose=0,
+                verbose=2 if debug else 0,
         ).history
     
     def store(self) -> None:

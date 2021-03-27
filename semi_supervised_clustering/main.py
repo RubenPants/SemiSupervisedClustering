@@ -220,6 +220,7 @@ class EmbeddingModel:
             n_val_uncertain: int = 2,
             show_overview: bool = False,
             cli: bool = False,
+            debug: bool = False,
     ) -> Any:
         """
         Train the embedding model using the supervised clusters.
@@ -241,6 +242,7 @@ class EmbeddingModel:
         :param n_val_uncertain: Number of uncertain samples (those that may belong to more than one cluster) validated
         :param show_overview: Show/print overview of the training process each iteration
         :param cli: Validate using the CLI, if False the training will continue without validation
+        :param debug: Print debugging information during training
         :return: Training history
         """
         if not self.clusterer.get_cluster_count():
@@ -262,6 +264,7 @@ class EmbeddingModel:
                             val_ratio=val_ratio,
                             batch_size=batch_size,
                             max_replaces=max_replaces,
+                            debug=debug,
                     )
                     if not history:
                         history = hist
@@ -288,6 +291,7 @@ class EmbeddingModel:
                             val_ratio=val_ratio,
                             batch_size=batch_size,
                             max_replaces=max_replaces,
+                            debug=debug,
                     )
                     if not history:
                         history = hist
@@ -307,7 +311,7 @@ class EmbeddingModel:
             )
             
             # Calculate ratio of samples in cluster
-            if show_overview:
+            if show_overview or debug:
                 predicted = self(data_clean, use_labeled=False)  # No cheating
                 counter = Counter(predicted)
                 print(f"\nTraining-clustering overview:")
@@ -316,8 +320,8 @@ class EmbeddingModel:
                 print(f" - Average cluster: {sum(v for k, v in counter.items() if k) / len(counter)}")
                 print(f" - Smallest cluster: {min(v for k, v in counter.items() if k)}")
                 
-                # Show validation overview
-                self.validate()
+                # Show validation overview (if validation set exists in cluster-data)
+                self.validate(print_result=True)
             
             # Validate newly clustered samples (not on last epoch)
             if epoch != epochs and cli:
@@ -359,15 +363,15 @@ class EmbeddingModel:
         if print_result:
             print(f"\nValidation result:")
             n_correct = sum([true == pred for true, pred in zip(y, predicted_clusters)])
-            print(f" - Accuracy: {get_percentage(n_correct, len(x))}")
-            n_unclustered = sum([pred is None for pred in predicted_clusters])
-            print(f" - None-cluster: {get_percentage(n_unclustered, len(x))}")
-            print(f" - Not-None cluster: {get_percentage(len(x) - n_unclustered, len(x))}")
+            print(f" - Global  Accuracy: {get_percentage(n_correct, len(x))}")
+            n_cl = sum([true is not None for true in y])
             n_correct_cl = sum([pred is not None and true == pred for true, pred in zip(y, predicted_clusters)])
-            n_not_none = len([c_id for c_id in y if c_id])
-            print(f" - Correct cluster (not-None): {get_percentage(n_correct_cl, n_not_none)}")
-            n_incorrect_cl = sum([pred is not None and true != pred for true, pred in zip(y, predicted_clusters)])
-            print(f" - Wrong cluster (not-None): {get_percentage(n_incorrect_cl, n_not_none)}")
+            print(f" - Accuracy cluster: {get_percentage(n_correct_cl, n_cl)}")
+            n_correct_none = sum([pred is None and true == pred for true, pred in zip(y, predicted_clusters)])
+            print(f" - Accuracy None   : {get_percentage(n_correct_none, len(x) - n_cl)}")
+            n_unclustered = sum([pred is None for pred in predicted_clusters])
+            print(f" - Number of predicted cluster: {get_percentage(len(x) - n_unclustered, len(x))}")
+            print(f" - Number of predicted None   : {get_percentage(n_unclustered, len(x))}")
         return list(zip(x, y, predicted_clusters))
     
     def initialise_embeddings(
@@ -524,6 +528,7 @@ class EmbeddingModel:
             val_ratio: float = .1,
             batch_size: int = 1024,
             max_replaces: int = 10,
+            debug: bool = False,
     ) -> Any:
         """Perform a single push-pull training."""
         embeddings = self.embed(data)
@@ -534,6 +539,7 @@ class EmbeddingModel:
                 items=data,
                 embeddings=embeddings,
                 max_replaces=max_replaces,
+                debug=debug,
         ))
         
         # Sample positive
@@ -542,6 +548,7 @@ class EmbeddingModel:
                 items=data,
                 embeddings=embeddings,
                 max_replaces=max_replaces,
+                debug=debug,
         ))
         
         # Encode and format training inputs
@@ -560,6 +567,7 @@ class EmbeddingModel:
                 switch=switch,
                 batch_size=batch_size,
                 val_ratio=val_ratio,
+                debug=debug,
         )
 
 

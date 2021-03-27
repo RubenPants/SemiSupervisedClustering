@@ -248,6 +248,7 @@ class Clusterer:
             items: List[str],
             embeddings: np.ndarray,
             max_replaces: int = 10,
+            debug: bool = False,
     ) -> List[Tuple[str, np.ndarray]]:
         """
         Sample positive items from the clusters with their centroid as target-vector.
@@ -256,6 +257,7 @@ class Clusterer:
         :param items: Input-items to select from (assumed to be cleaned)
         :param embeddings: Embeddings used to determine the centroids
         :param max_replaces: Maximum number of times an item can be replaced during sampling
+        :param debug: Show debugging information
         :return: List of samples together with their corresponding cluster-centroid-embeddings
         """
         assert self._clusters
@@ -273,6 +275,14 @@ class Clusterer:
         result = []
         for sample in np.random.choice(known_items_plural, size=min(n, len(known_items_plural)), replace=False):
             result.append((sample, centroids[self._clusters[sample]]))
+        
+        # Print debugging information if requested
+        if debug:
+            print(f"Sampling positive:")
+            print(f" - Number of samples: {len(result)}")
+            print(f" - Number of known items: {len(known_items_plural)}")
+            print(f" - Number of centroids: {len(centroids)}")
+            print(f" - Maximum number of replaces: {min(max_replaces, ceil(n / len(known_items_plural)))}")
         return result
     
     def sample_negative(
@@ -281,6 +291,7 @@ class Clusterer:
             items: List[str],
             embeddings: np.ndarray,
             max_replaces: int = 10,
+            debug: bool = False,
     ) -> List[Tuple[str, np.ndarray]]:
         """
         Sample negative items from the clusters together with a repulsion-vector.
@@ -292,6 +303,7 @@ class Clusterer:
         :param items: Input-items to select from (assumed to be cleaned)
         :param embeddings: Embeddings used to determine the centroids
         :param max_replaces: Maximum number of times an item can be replaced during sampling
+        :param debug: Show debugging information
         :return: List of samples together with their corresponding (repulsion) vector
         """
         assert self._clusters
@@ -300,8 +312,8 @@ class Clusterer:
         # Update the cluster-centroids using the provided embeddings
         centroids = self.get_centroids(items=items, embeddings=embeddings)
         
-        # Enlist all sampling options
-        known_items = list(set(self._clusters.keys()) & set(items))
+        # Enlist all sampling options (i.e. all labeled samples)
+        known_items = list(self._clusters.keys())
         known_items *= min(max_replaces, ceil(n / len(known_items)))
         
         def get_repulsion_vector(item: str) -> np.ndarray:
@@ -312,6 +324,14 @@ class Clusterer:
         result = []
         for sample in np.random.choice(known_items, size=min(n, len(known_items)), replace=False):
             result.append((sample, get_repulsion_vector(sample)))
+        
+        # Print debugging information if requested
+        if debug:
+            print(f"Sampling negative:")
+            print(f" - Number of samples: {len(result)}")
+            print(f" - Number of known items: {len(known_items)}")
+            print(f" - Number of centroids: {len(centroids)}")
+            print(f" - Maximum number of replaces: {min(max_replaces, ceil(n / len(known_items)))}")
         return result
     
     def discover_unlabeled(
