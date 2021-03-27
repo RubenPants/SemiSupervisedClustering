@@ -280,7 +280,7 @@ class Clusterer:
         if debug:
             print(f"Sampling positive:")
             print(f" - Number of samples: {len(result)}")
-            print(f" - Number of known items: {len(known_items_plural)}")
+            print(f" - Number of known items (not None): {len([v for v in self._clusters.values() if v])}")
             print(f" - Number of centroids: {len(centroids)}")
             print(f" - Maximum number of replaces: {min(max_replaces, ceil(n / len(known_items_plural)))}")
         return result
@@ -329,7 +329,7 @@ class Clusterer:
         if debug:
             print(f"Sampling negative:")
             print(f" - Number of samples: {len(result)}")
-            print(f" - Number of known items: {len(known_items)}")
+            print(f" - Number of known items: {len(list(self._clusters.keys()))}")
             print(f" - Number of centroids: {len(centroids)}")
             print(f" - Maximum number of replaces: {min(max_replaces, ceil(n / len(known_items)))}")
         return result

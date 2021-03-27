@@ -380,7 +380,7 @@ class EmbeddingModel:
             embeddings: np.ndarray,
             iterations: int = 8,
             batch_size: int = 1024,
-            max_replaces: int = 10,
+            n_replaces: int = 5,
     ) -> Any:
         """
         Initialise the embedding-model using pre-existing sentence embeddings.
@@ -389,14 +389,14 @@ class EmbeddingModel:
         :param embeddings: Pre-existing sentence embedding corresponding the sentence data
         :param iterations: Number of iterations between validations
         :param batch_size: Batch-size used during training
-        :param max_replaces: Maximum number of times the same data-sample is replaced during sampling
+        :param n_replaces: Number of times the same data-sample is replaced during sampling
         :return: Training history
         """
         assert len(data) == len(embeddings)
         
         # Initialise fitting of provided embeddings
-        data = [self.clean_f(d) for d in data] * max_replaces
-        y = np.vstack([embeddings, ] * max_replaces)
+        data = [self.clean_f(d) for d in data] * n_replaces
+        y = np.vstack([embeddings, ] * n_replaces)
         switch = np.ones((len(y), 1), dtype=np.float32)
         history = None
         
