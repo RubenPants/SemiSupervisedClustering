@@ -320,7 +320,6 @@ class Clusterer:
         
         def get_repulsion_vector(item: str) -> np.ndarray:
             """Get a repulsion vector - random centroid different from own cluster - for the given item."""
-            print(item, ' - ', np.random.choice(cluster_ids, p=sim_map[item]))
             return self._centroids[np.random.choice(cluster_ids, p=sim_map[item])]
         
         # Sample with (limited) replacement, unweighted sampling
