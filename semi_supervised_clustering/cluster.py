@@ -203,7 +203,7 @@ class Clusterer:
         
         # Create the centroids
         self._centroids = {}  # Reset previous centroids
-        for c_id in set(all_clusters) - {None,}:
+        for c_id in set(all_clusters) - {None, }:
             indices = [i for i, x in enumerate(all_clusters) if x == c_id]
             self._centroids[c_id] = np.take(embeddings, indices, axis=0).mean(0)
     
@@ -302,19 +302,26 @@ class Clusterer:
         :return: List of samples together with their corresponding (repulsion) vector
         """
         assert self._clusters
+        assert len(self._clusters) > 1
         
         # Set the centroids to the model's current state
         self.set_centroids(embedding_f)
+        cluster_ids, centroids = zip(*self._centroids.items())
         
-        # Enlist all sampling options (i.e. all labeled samples)
+        # Enlist all sampling options (i.e. all labeled samples) and calculate similarities to other clusters
         known_items = list(self._clusters.keys())
+        sim = (cosine_similarity(embedding_f(known_items), centroids) + 1) / 2
+        for k, s in zip(known_items, sim):  # Put own cluster to zero to ensure it isn't sampled
+            if self._clusters[k]:
+                s[cluster_ids.index(self._clusters[k])] = 0
+        sim /= sim.sum(axis=1)[:, None]  # Normalise
+        sim_map = dict(zip(known_items, sim))
         known_items *= min(max_replaces, ceil(n / len(known_items)))
         
         def get_repulsion_vector(item: str) -> np.ndarray:
             """Get a repulsion vector - random centroid different from own cluster - for the given item."""
-            return self._centroids[
-                choice([c_id for c_id in self.get_all_cluster_ids() if c_id != self._clusters[item]])
-            ]
+            print(item, ' - ', np.random.choice(cluster_ids, p=sim_map[item]))
+            return self._centroids[np.random.choice(cluster_ids, p=sim_map[item])]
         
         # Sample with (limited) replacement, unweighted sampling
         result = []
