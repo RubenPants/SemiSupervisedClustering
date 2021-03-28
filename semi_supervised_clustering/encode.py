@@ -76,7 +76,7 @@ class Encoder:
         
         # Load in file and
         sp.SentencePieceTrainer.train(
-                f"--model_type=bpe "
+                f"--model_type={self._model_type} "
                 f"--input={temp_path} "
                 f"--model_prefix={self._path / str(self)} "
                 f"--vocab_size={self._vocab_size + self._token_offset}"
