@@ -117,10 +117,18 @@ class EmbeddingModel:
         if not sentences: return np.zeros((0, self.embedder.dim), dtype=np.float32)  # To prevent breaks
         return self.embedder(self.encoder([self.clean_f(s) for s in sentences]))
     
-    def get_cluster_prob(self, sentences: List[str]) -> List[Tuple[str, float]]:
+    def get_cluster_prob(self, sentences: List[str], use_labeled: bool = True) -> List[Tuple[str, float]]:
         """Cluster without a probability threshold and return closest cluster ID together with cosine similarity."""
         if not sentences: return []  # To prevent broken predictions
-        return self.clusterer.cluster_prob(self.embed(sentences))
+        cluster_probs = self.clusterer.cluster_prob(self.embed(sentences))
+        
+        # Overwrite prediction if in labeled set
+        if use_labeled:
+            all_labels = self.clusterer.get_all_labels()
+            for i, s in enumerate(sentences):
+                if s in all_labels:
+                    cluster_probs[i] = (all_labels[s], 1)
+        return cluster_probs
     
     def get_all_cluster_prob(self, sentences: List[str], use_softmax: bool = False) -> Tuple[List[str], np.ndarray]:
         """Get softmax probabilities for all clusters."""
