@@ -137,7 +137,7 @@ class EmbeddingModel:
         if use_labeled:
             all_labels = self.clusterer.get_all_labels()
             if not use_labeled_none:
-                all_labels = {k: v for k, v in all_labels if v}
+                all_labels = {k: v for k, v in all_labels.items() if v}
             for i, s in enumerate(sentences):
                 if s in all_labels:
                     cluster_probs[i] = (all_labels[s], 1)
